@@ -13,13 +13,43 @@ from pathlib import Path
 from typing import List, Tuple
 
 
+def get_user_home() -> Path:
+    """Resolve the real target user home directory even under sudo."""
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and sudo_user != "root":
+        try:
+            import pwd
+            return Path(pwd.getpwnam(sudo_user).pw_dir)
+        except Exception:
+            pass
+    return Path.home()
+
+
+def fix_ownership(path: Path) -> None:
+    """Fix ownership of installed directories to SUDO_USER if running under sudo."""
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and sudo_user != "root" and hasattr(os, "chown") and hasattr(os, "geteuid"):
+        if os.geteuid() == 0:
+            try:
+                import pwd
+                pw = pwd.getpwnam(sudo_user)
+                uid, gid = pw.pw_uid, pw.pw_gid
+                for root, dirs, files in os.walk(path):
+                    os.chown(root, uid, gid)
+                    for f in files:
+                        os.chown(os.path.join(root, f), uid, gid)
+                os.chown(path, uid, gid)
+            except Exception:
+                pass
+
+
 def get_detected_targets() -> List[Tuple[str, Path, Path]]:
     """
     Detect all potential Xournal++ plugin directories across platforms and packaging formats.
     Returns list of (label, plugin_dir, config_dir).
     """
     targets: List[Tuple[str, Path, Path]] = []
-    home = Path.home()
+    home = get_user_home()
 
     if sys.platform == "win32":
         # Windows Standard & Roaming
@@ -160,8 +190,10 @@ def run_install_all(log_cb=print) -> None:
             except Exception:
                 pass
 
+        fix_ownership(p_dir)
+
     # Verify and cache/download AI models silently into user cache (~/.cache/formfillai/models)
-    cache_dir = Path.home() / ".cache" / "formfillai" / "models"
+    cache_dir = get_user_home() / ".cache" / "formfillai" / "models"
     cache_dir.mkdir(parents=True, exist_ok=True)
     for model_name in ["FFDNet-S.onnx", "FFDNet-L.onnx"]:
         tmp_model = Path("/tmp") / model_name
@@ -181,6 +213,7 @@ def run_install_all(log_cb=print) -> None:
     except Exception as e:
         log_cb(f"Note on AI model: {e}")
 
+    fix_ownership(get_user_home() / ".cache" / "formfillai")
     log_cb("🎉 1-Click Installation Complete! FormFillAI is ready in Xournal++.")
 
 
@@ -202,7 +235,7 @@ def run_uninstall_all(log_cb=print) -> None:
         disable_in_settings_xml(c_dir, log_cb=log_cb)
 
     # Clean user cache
-    cache_dir = Path.home() / ".cache" / "formfillai"
+    cache_dir = get_user_home() / ".cache" / "formfillai"
     if cache_dir.exists():
         log_cb(f"Cleaning cache directory ({cache_dir})...")
         try:
