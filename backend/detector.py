@@ -354,3 +354,53 @@ class FormFieldDetector:
             "checkboxes": checkboxes,
             "signatures": signatures,
         }
+
+    def detect_all_pages(self, pdf_path: str) -> Dict[str, Any]:
+        """
+        Run detection across all pages of a PDF document and return a dict of results per page.
+        """
+        resolved_pdf = resolve_pdf_path(pdf_path)
+        if not resolved_pdf or not resolved_pdf.exists():
+            raise FileNotFoundError(f"PDF path not found: {pdf_path}")
+
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(str(resolved_pdf))
+        num_pages = len(pdf)
+
+        pages_data = {}
+        total_fields = 0
+        total_texts = 0
+        total_cbs = 0
+        total_sigs = 0
+
+        for page_idx in range(num_pages):
+            page_num = page_idx + 1
+            res = self.detect(pdf_path=str(resolved_pdf), page_number=page_num)
+            pages_data[str(page_num)] = {
+                "page": page_num,
+                "page_width": res["page_width"],
+                "page_height": res["page_height"],
+                "text_boxes": res["text_boxes"],
+                "checkboxes": res["checkboxes"],
+                "signatures": res["signatures"],
+                "counts": res["counts"]
+            }
+            total_fields += res["counts"]["total"]
+            total_texts += res["counts"]["text_boxes"]
+            total_cbs += res["counts"]["checkboxes"]
+            total_sigs += res["counts"]["signatures"]
+
+        return {
+            "success": True,
+            "model": str(self.model_name),
+            "model_type": str(self.model_type),
+            "total_pages": int(num_pages),
+            "counts": {
+                "total": int(total_fields),
+                "text_boxes": int(total_texts),
+                "checkboxes": int(total_cbs),
+                "signatures": int(total_sigs)
+            },
+            "pages": pages_data
+        }
+

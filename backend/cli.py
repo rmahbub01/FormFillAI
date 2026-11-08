@@ -26,6 +26,7 @@ def main() -> None:
     p_detect = subparsers.add_parser("detect", help="Detect form fields on a PDF page or image")
     p_detect.add_argument("--pdf", type=str, default=None, help="Path to input PDF file")
     p_detect.add_argument("--page", type=int, default=1, help="Page number (1-based)")
+    p_detect.add_argument("--all-pages", action="store_true", help="Detect form fields across all pages of the PDF")
     p_detect.add_argument("--image", type=str, default=None, help="Path to image file (optional fallback)")
     p_detect.add_argument("--width", type=float, default=None, help="Target document width in points")
     p_detect.add_argument("--height", type=float, default=None, help="Target document height in points")
@@ -35,6 +36,12 @@ def main() -> None:
 
     # Subcommand: settings
     subparsers.add_parser("settings", help="Open visual settings and tools dialog")
+
+    # Subcommand: assistant
+    p_ast = subparsers.add_parser("assistant", help="Open FormFillAI Assistant & Checkbox Manager")
+    p_ast.add_argument("--data", type=str, required=True, help="Path to detection JSON")
+    p_ast.add_argument("--out", type=str, required=True, help="Path to applied JSON output")
+    p_ast.add_argument("--page", type=int, default=1, help="Page number (1-based)")
 
     # Subcommand: download
     p_dl = subparsers.add_parser("download", help="Pre-download AI models")
@@ -53,13 +60,16 @@ def main() -> None:
 
         try:
             detector = FormFieldDetector(model_name=model_name, confidence=confidence, engine=engine)
-            results = detector.detect(
-                pdf_path=args.pdf,
-                page_number=args.page,
-                image_path=args.image,
-                target_page_width=args.width,
-                target_page_height=args.height
-            )
+            if args.all_pages and args.pdf:
+                results = detector.detect_all_pages(pdf_path=args.pdf)
+            else:
+                results = detector.detect(
+                    pdf_path=args.pdf,
+                    page_number=args.page,
+                    image_path=args.image,
+                    target_page_width=args.width,
+                    target_page_height=args.height
+                )
 
             # Inject active configuration so Lua can immediately apply font & checkbox styling
             results["config"] = config
@@ -90,6 +100,10 @@ def main() -> None:
     elif args.command == "settings":
         from gui_settings import launch_gui
         launch_gui()
+
+    elif args.command == "assistant":
+        from gui_assistant import launch_assistant
+        launch_assistant(args.data, args.out, args.page)
 
     elif args.command == "download":
         models = ["FFDNet-S", "FFDNet-L"] if args.model == "all" else [args.model]

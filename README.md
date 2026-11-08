@@ -92,26 +92,30 @@ install.bat
 | Shortcut | Action | Description |
 |---|---|---|
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Form Fields** | Auto-detects text boxes and checkboxes on the current page |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> | **Form Fill Assistant** | Opens the visual Assistant to mark preferred individual checkboxes & fill fields |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | **Toggle Selected Checkbox** | Toggles the checkbox at your cursor/selection (Checked ✓ / Crossed ✗ / Clear) |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Cleans all visual guide borders and placeholders for clean PDF saving/export |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | **Fill All Checkboxes** | Marks all detected checkboxes with the chosen shape (`✓`) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | **Toggle Nearest Checkbox** | Checks/unchecks the nearest checkbox |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings & Tools** | Opens the visual GUI settings dialog |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings & Tools** | Opens the visual GUI settings dialog & font browser |
 
 ---
 
 ## 🖥️ Menu Actions (`Plugin > FormFillAI`)
 
 - **Detect Form Fields (Current Page)**: Scans the active page and creates overlay text boxes and checkboxes.
-- **Detect Form Fields (All Pages)**: Batch-processes multi-page PDF documents.
-- **Fill All Checkboxes (Checked ✓)**: Fills all checkboxes with checkmarks.
-- **Fill All Checkboxes (Crossed ✗)**: Fills all checkboxes with diagonal crosses.
-- **Fill All Checkboxes (Solid Square ■)**: Fills all checkboxes with solid squares.
-- **Fill All Checkboxes (Bullet Dot ●)**: Fills all checkboxes with bullet dots.
-- **Toggle / Check Nearest Checkbox**: Toggles the nearest checkbox.
-- **Add Checkbox Here**: Places a new checkbox at your selection or view center.
+- **Detect Form Fields (All Pages)**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
+- **Form Fill Assistant & Checkbox Manager...**: Opens an interactive assistant window to select and mark individual preferred checkboxes (e.g. choose Male OR Female, Married OR Unmarried).
+- **Apply Fills from Assistant**: Renders the checkboxes and text values configured in the Assistant.
+- **Toggle / Mark Nearest Checkbox**: Marks or unmarks only the specific checkbox at your cursor or selection.
+- **Remove Guide Borders (Clean for PDF Export - Current Page)**: Instantly deletes visual guide borders and placeholders, ensuring 100% clean PDF saving.
+- **Remove Guide Borders (Clean for PDF Export - All Pages)**: Cleans guide borders across all pages of the document.
+- **Fill All Checkboxes (Checked ✓)**: Bulk-fills all checkboxes with checkmarks.
+- **Fill All Checkboxes (Crossed ✗)**: Bulk-fills all checkboxes with diagonal crosses.
+- **Clear All Checkboxes (Current Page)**: Unchecks and clears all checkmarks on the active page.
 - **Add Text Field Overlay**: Places a new text box at your selection or view center.
-- **Delete Selected Overlay**: Deletes the currently selected overlay.
+- **Add Checkbox Here**: Places a new checkbox at your selection or view center.
 - **Clear All Form Overlays (Current Page)**: Wipes all form overlays from the current page layer.
-- **Settings & Preferences...**: Launches the settings dialog.
+- **Settings & Preferences...**: Launches the settings dialog and Bangla font selector.
 
 ---
 

@@ -194,6 +194,36 @@ class TestFormFillAI(unittest.TestCase):
         self.assertGreater(test_png.stat().st_size, 1000)
         print(f"\n[Test] Rendered .xopp output image size: {test_png.stat().st_size} bytes")
 
+    def test_07_detect_all_pages(self):
+        """Verify batch all-pages detection on reference PDF."""
+        ref_pdf = "/home/mahbub/Downloads/Form-1_Government_Employee_Service_Information_Form.pdf"
+        if not Path(ref_pdf).exists():
+            self.skipTest(f"Reference PDF {ref_pdf} not found")
+
+        detector = FormFieldDetector(model_name="FFDNet-S", confidence=0.28)
+        results = detector.detect_all_pages(pdf_path=ref_pdf)
+
+        self.assertTrue(results["success"])
+        self.assertEqual(results["total_pages"], 4)
+        self.assertEqual(len(results["pages"]), 4)
+        self.assertGreaterEqual(results["counts"]["text_boxes"], 200)
+        self.assertGreaterEqual(results["counts"]["checkboxes"], 20)
+
+    def test_08_resolve_pdf_path(self):
+        """Verify robust PDF path resolver with relative, URL, and common directories."""
+        from detector import resolve_pdf_path
+        ref_pdf = "/home/mahbub/Downloads/Form-1_Government_Employee_Service_Information_Form.pdf"
+        if not Path(ref_pdf).exists():
+            self.skipTest(f"Reference PDF {ref_pdf} not found")
+
+        p_abs = resolve_pdf_path(ref_pdf)
+        p_base = resolve_pdf_path("Form-1_Government_Employee_Service_Information_Form.pdf")
+        p_uri = resolve_pdf_path("file://" + ref_pdf)
+
+        self.assertIsNotNone(p_abs)
+        self.assertEqual(p_abs, p_base)
+        self.assertEqual(p_abs, p_uri)
+
 
 if __name__ == "__main__":
     unittest.main()
