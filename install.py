@@ -160,7 +160,7 @@ def run_install_all(log_cb=print) -> None:
             except Exception:
                 pass
 
-    # Pre-copy models to user cache
+    # Verify and cache/download AI models silently into user cache (~/.cache/formfillai/models)
     cache_dir = Path.home() / ".cache" / "formfillai" / "models"
     cache_dir.mkdir(parents=True, exist_ok=True)
     for model_name in ["FFDNet-S.onnx", "FFDNet-L.onnx"]:
@@ -169,6 +169,17 @@ def run_install_all(log_cb=print) -> None:
         if tmp_model.exists() and not cached_model.exists():
             log_cb(f"Caching {model_name}...")
             shutil.copy2(tmp_model, cached_model)
+
+    try:
+        backend_path = source_dir / "backend"
+        if str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+        from model_manager import resolve_model_path
+        log_cb("Checking AI model (FFDNet-S)...")
+        m_path, m_type = resolve_model_path("FFDNet-S", prefer_onnx=True)
+        log_cb(f"AI Model ready: {m_path.name} ({m_type.upper()})")
+    except Exception as e:
+        log_cb(f"Note on AI model: {e}")
 
     log_cb("🎉 1-Click Installation Complete! FormFillAI is ready in Xournal++.")
 
@@ -367,10 +378,10 @@ def run_gui() -> None:
 
 
 if __name__ == "__main__":
-    has_display = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY") or sys.platform == "win32")
-    if "--uninstall" in sys.argv:
-        run_cli_uninstall()
-    elif "--install" in sys.argv or "--cli" in sys.argv or not has_display:
-        run_cli_install()
-    else:
+    if "--gui" in sys.argv:
         run_gui()
+    elif "--uninstall" in sys.argv:
+        run_cli_uninstall()
+    else:
+        # Default is silent CLI installation: NO GUI popup!
+        run_cli_install()

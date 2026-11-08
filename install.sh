@@ -18,7 +18,7 @@ echo -e "${BLUE}=====================================================${NC}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Run python installer if python3 is available
+# Run silent CLI installer if python3 is available
 PYTHON_BIN=""
 for py in python3 python; do
     if command -v "$py" >/dev/null 2>&1; then
@@ -28,7 +28,7 @@ for py in python3 python; do
 done
 
 if [ -n "$PYTHON_BIN" ] && [ -f "$SCRIPT_DIR/install.py" ]; then
-    "$PYTHON_BIN" "$SCRIPT_DIR/install.py" "$@"
+    "$PYTHON_BIN" "$SCRIPT_DIR/install.py" --install "$@"
     exit 0
 fi
 

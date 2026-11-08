@@ -12,13 +12,13 @@ set "SCRIPT_DIR=%~dp0"
 REM Try python installer first
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
-    python "%SCRIPT_DIR%install.py" %*
+    python "%SCRIPT_DIR%install.py" --install %*
     goto :end
 )
 
 py --version >nul 2>&1
 if %errorlevel% equ 0 (
-    py "%SCRIPT_DIR%install.py" %*
+    py "%SCRIPT_DIR%install.py" --install %*
     goto :end
 )
 
