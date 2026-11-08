@@ -91,24 +91,23 @@ install.bat
 
 | Shortcut | Action | Description |
 |---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Auto-detects text fields and checkboxes on the current page |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | **Checkbox Manager** | Opens visual Manager with label crops to choose and mark preferred checkboxes |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Removes all dashed guide borders around fields, retaining all typed text |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | **Add Checkbox Here** | Places a checkbox at the exact center of your rectangular selection region |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Opens settings and 446-system-font browser (Nikosh default) |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Detects text fields and checkboxes; creates bounded fillable overlays in Pure Black Nikosh font |
+| | **Detect Full PDF** | High-speed batch detection across all PDF pages in memory (~2.8s) |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Removes all dashed guide borders and unfilled placeholders, leaving 100% naturally typed form |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | **Add Checkbox Here** | Choose shape (`✓`, `✗`, `■`, `●`, `☐`); drops onto PDF with handles to resize & drag anywhere |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Configure 446+ system fonts (Nikosh Bangla default), models, and colors |
 
 ---
 
 ## 🖥️ Menu Actions (`Plugin > FormFillAI`)
 
-FormFillAI provides a clean, focused 6-tool menu in Xournal++:
+FormFillAI provides a streamlined 5-tool workflow:
 
-1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes (Pure Black, Nikosh font) and checkboxes.
+1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes matching the exact boundaries (`x, y, width, height`) of detected fields, plus subtle dashed guidelines. Clicking inside any field immediately activates typing with Pure Black Nikosh font.
 2. **FormFillAI: Detect Full PDF**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
-3. **FormFillAI: Checkbox Manager** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>): Opens the visual Checkbox Manager with thumbnail crops of each checkbox and its label from the PDF. Allows choosing individual preferred checkboxes (e.g. Male vs Female, Married vs Unmarried) with `✓ Check`, `✗ Cross`, or `■ Square`.
-4. **FormFillAI: Remove Guide Borders** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>): Deletes all dashed guide lines around input fields and checkboxes, leaving the document 100% clean for PDF saving while retaining all text typed by the user.
-5. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): Places a checkbox at the exact center of your active rectangular selection region. If no region is selected, automatically switches to the Rectangular Selection tool.
-6. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts, AI model (FFDNet-S / FFDNet-L), and colors.
+3. **FormFillAI: Remove Guide Borders** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>): Deletes all dashed guide lines and unfilled placeholders, retaining 100% of user-typed text and checkmarks for a clean, naturally typed form ready for PDF export.
+4. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): No selection needed beforehand. Prompts you to pick a shape (`✓ Check`, `✗ Cross`, `■ Square`, `● Bullet`, `☐ Box`), immediately drops the shape onto the PDF, and activates selection resize handles so you can resize and reposition it freely.
+5. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts, AI model (FFDNet-S / FFDNet-L), and colors.
 
 ---
 
