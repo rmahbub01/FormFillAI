@@ -14,7 +14,7 @@
   "checkbox_color_hex": "#002060",
   "checkbox_custom_char": "\u2713",
   "auto_fill_checkboxes": false,
-  "show_field_borders": true,
+  "show_field_borders": false,
   "border_color": 9482448,
   "border_color_hex": "#90B0D0",
   "border_width": 0.8

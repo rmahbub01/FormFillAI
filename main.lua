@@ -422,36 +422,18 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
     PluginState.textBoxRefs[pageIdx] = textRefs
   end
 
-  -- 2. Draw subtle dashed visual guide borders around fields and checkboxes
-  local borderStrokes = {}
-  if showBorders then
-    for _, box in ipairs(tbs) do
-      table.insert(borderStrokes, createFieldBorderStrokes(box, borderCol, borderW))
-    end
-    for _, box in ipairs(cbs) do
-      table.insert(borderStrokes, createFieldBorderStrokes(box, borderCol, borderW))
-    end
-  end
-
-  -- Add dashed borders and track references for clean 100% removal before PDF export
-  if #borderStrokes > 0 then
-    local refs = app.addStrokes({ strokes = borderStrokes, allowUndoRedoAction = "grouped" })
-    PluginState.guideBorderRefs[pageIdx] = refs
-  end
-
+  -- 2. Do NOT draw dashed guide borders (pure fillable text fields as requested)
   app.refreshPage()
 
   if showSummary then
     local summary = string.format(
       "✨ FormFillAI Detection Complete!\n\n" ..
-      "• Detected Text Fields: %d (Bounded Overlays Ready)\n" ..
-      "• Detected Checkboxes: %d\n" ..
+      "• Detected & Overlayed Text Fields: %d\n" ..
       "• Active Font: %s (Pure Black)\n\n" ..
       "👉 How to fill:\n" ..
-      "1. Click inside any bounded box to type directly on that field.\n" ..
-      "2. Select Menu > 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop & place checkmarks or shapes.\n" ..
-      "3. When finished, select 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) for a clean, naturally typed form.",
-      #tbs, #cbs, fontFam
+      "1. Click inside any form field to type directly in Bengali.\n" ..
+      "2. Select Menu > 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks, crosses, or shapes anywhere on the form.",
+      #tbs, fontFam
     )
     app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
   end
@@ -669,13 +651,12 @@ function onDetectFullPdf()
     "✨ FormFillAI Full PDF Detection Complete!\n\n" ..
     "Processed all %d pages in ~2.8 seconds:\n" ..
     "• Total Text Fields: %d (Bounded Overlays Ready)\n" ..
-    "• Total Checkboxes: %d\n" ..
     "• Font: %s (Pure Black)\n\n" ..
     "👉 Next Steps:\n" ..
-    "1. Click inside any bounded box to type directly on that field.\n" ..
+    "1. Click inside any form field to type directly in Bengali.\n" ..
     "2. Use 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks/shapes and resize them.\n" ..
-    "3. Use 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) when done for a clean, naturally typed form.",
-    totalPages, counts.text_boxes or 0, counts.checkboxes or 0, config.font_family or "Nikosh"
+    "3. Use 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) when done to clean any unfilled placeholders.",
+    totalPages, counts.text_boxes or 0, config.font_family or "Nikosh"
   )
   app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
 end
@@ -688,6 +669,11 @@ function onRemoveGuideBorders()
   local doc = app.getDocumentStructure()
   if not doc or not doc.pages then return end
   local pageIdx = doc.currentPage or 1
+
+  -- Activate Selection Tool so delete action operates properly
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_selectRect)
+  end)
 
   -- 1. Remove all tracked guide border strokes
   local refs = PluginState.guideBorderRefs[pageIdx]
@@ -774,16 +760,20 @@ function onRemoveGuideBorders()
     app.addTexts({ texts = newTexts, allowUndoRedoAction = "grouped" })
   end
 
+  -- Return to text tool
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_text)
+  end)
+
   app.refreshPage()
 
   app.openDialog(
     string.format(
-      "✨ Guide Borders & Artifacts Removed!\n\n" ..
-      "• All dashed guide borders around input fields and checkboxes removed.\n" ..
-      "• Cleaned unfilled field placeholders.\n" ..
-      "• User-typed text fields retained: %d field(s)\n" ..
-      "• Checkmarks and shapes retained intact.\n\n" ..
-      "Your form now looks naturally typed and is ready to save or export!",
+      "✨ Form Cleanup Complete!\n\n" ..
+      "• Cleaned all unfilled field placeholders and guide borders.\n" ..
+      "• Preserved user-typed text fields: %d field(s)\n" ..
+      "• Preserved all placed checkmarks and shapes.\n\n" ..
+      "Your form is naturally typed and ready to save or export!",
       userTextCount
     ),
     { "OK" },
@@ -818,16 +808,9 @@ function cbOnChooseCheckboxShape(btn)
   local pageWidth = pageInfo and pageInfo.pageWidth or 612.0
   local pageHeight = pageInfo and pageInfo.pageHeight or 792.0
 
-  local size = 16.0
+  local size = 18.0
   local posX = (pageWidth - size) / 2.0
-  local posY = (pageHeight - size) / 3.0
-
-  -- If user currently has an active selection or selected object, use its center
-  local sel = app.getToolInfo("selection")
-  if sel and sel.boundingBox and sel.boundingBox.width and sel.boundingBox.width > 2.0 then
-    posX = sel.boundingBox.x + (sel.boundingBox.width - size) / 2.0
-    posY = sel.boundingBox.y + (sel.boundingBox.height - size) / 2.0
-  end
+  local posY = (pageHeight - size) / 2.5
 
   local newBox = {
     x = posX,
@@ -864,15 +847,16 @@ function cbOnChooseCheckboxShape(btn)
   local refs = app.addStrokes({ strokes = strokes, allowUndoRedoAction = "individual" })
   newBox.strokeRefs = refs
 
-  -- Immediately select the new checkbox with the Selection Tool
-  -- Corner resize handles appear so the user can resize normally and drag to preferred place!
+  -- Activate Selection Tool FIRST so that the selection model is active and ready
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_selectRect)
+  end)
+
+  -- Immediately select the new shape so 8 resize/drag handles appear on screen
   app.clearSelection()
   if refs and #refs > 0 then
     app.addToSelection(refs)
   end
-  pcall(function()
-    app.changeActionState("select-tool", app.C.Tool_selectRect)
-  end)
 
   app.refreshPage()
 end

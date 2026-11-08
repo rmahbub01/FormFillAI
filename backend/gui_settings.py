@@ -146,13 +146,7 @@ class FormFillAISettingsDialog:
         self.var_font_size = tk.DoubleVar(value=float(self.config.get("font_size", 11.0)))
         self.var_font_color = tk.StringVar(value=self.config.get("font_color_hex", "#000000"))
 
-        self.var_cb_style = tk.StringVar(value=self.config.get("checkbox_style", "check"))
-        self.var_cb_color = tk.StringVar(value=self.config.get("checkbox_color_hex", "#002060"))
-        self.var_cb_width = tk.DoubleVar(value=float(self.config.get("checkbox_stroke_width", 1.6)))
-        self.var_cb_custom = tk.StringVar(value=self.config.get("checkbox_custom_char", "✓"))
-        self.var_cb_autofill = tk.BooleanVar(value=bool(self.config.get("auto_fill_checkboxes", False)))
-
-        self.var_borders = tk.BooleanVar(value=bool(self.config.get("show_field_borders", True)))
+        self.var_borders = tk.BooleanVar(value=bool(self.config.get("show_field_borders", False)))
         self.var_font_filter = tk.StringVar(value="")
 
     def _build_ui(self) -> None:
@@ -173,7 +167,7 @@ class FormFillAISettingsDialog:
 
         lbl_sub = tk.Label(
             title_frame,
-            text="Auto-detect flat PDF form fields, overlay Bangla text boxes, and customize checkboxes.",
+            text="Auto-detect flat PDF form fields and configure Bangla fonts & AI models.",
             font=("Sans", 9),
             fg="#4a5568"
         )
@@ -192,11 +186,6 @@ class FormFillAISettingsDialog:
         tab_ai = ttk.Frame(nb, padding=12)
         nb.add(tab_ai, text="🤖 AI Model (FFDNet)")
         self._build_ai_tab(tab_ai)
-
-        # Tab 3: Checkbox Styles
-        tab_cb = ttk.Frame(nb, padding=12)
-        nb.add(tab_cb, text="☑️ Checkboxes & Shapes")
-        self._build_checkbox_tab(tab_cb)
 
         # Bottom Action Bar
         btn_bar = ttk.Frame(main_frame)
@@ -463,49 +452,6 @@ class FormFillAISettingsDialog:
         )
         cb_borders.pack(anchor=tk.W, pady=2)
 
-    def _build_checkbox_tab(self, parent: ttk.Frame) -> None:
-        grp_style = ttk.LabelFrame(parent, text="Checkbox Fill Shape / Mark", padding=10)
-        grp_style.pack(fill=tk.X, pady=(0, 10))
-
-        rb_chk = ttk.Radiobutton(grp_style, text="Checkmark (✓) — Hand-checked vector stroke", variable=self.var_cb_style, value="check")
-        rb_chk.pack(anchor=tk.W, pady=3)
-
-        rb_crs = ttk.Radiobutton(grp_style, text="Cross (✗) — Crisp diagonal cross (X)", variable=self.var_cb_style, value="cross")
-        rb_crs.pack(anchor=tk.W, pady=3)
-
-        rb_sqr = ttk.Radiobutton(grp_style, text="Solid Filled Square (■) — Shaded form block", variable=self.var_cb_style, value="square")
-        rb_sqr.pack(anchor=tk.W, pady=3)
-
-        rb_dot = ttk.Radiobutton(grp_style, text="Bullet Dot (●) — Centered solid dot / radio button", variable=self.var_cb_style, value="bullet")
-        rb_dot.pack(anchor=tk.W, pady=3)
-
-        cust_frame = ttk.Frame(grp_style)
-        cust_frame.pack(anchor=tk.W, fill=tk.X, pady=3)
-        rb_cst = ttk.Radiobutton(cust_frame, text="Custom Symbol: ", variable=self.var_cb_style, value="custom")
-        rb_cst.pack(side=tk.LEFT)
-        ent_cust = ttk.Entry(cust_frame, textvariable=self.var_cb_custom, width=6)
-        ent_cust.pack(side=tk.LEFT, padx=4)
-
-        grp_color = ttk.LabelFrame(parent, text="Checkbox Stroke & Color", padding=10)
-        grp_color.pack(fill=tk.X, pady=(0, 10))
-
-        c_frame = ttk.Frame(grp_color)
-        c_frame.pack(fill=tk.X, pady=4)
-        self.swatch_cb = tk.Label(c_frame, width=3, height=1, bg=self.var_cb_color.get(), relief=tk.SOLID, borderwidth=1)
-        self.swatch_cb.pack(side=tk.LEFT, padx=(0, 8))
-        btn_pick = ttk.Button(c_frame, text="Pick Color...", command=self._pick_cb_color)
-        btn_pick.pack(side=tk.LEFT, padx=(0, 12))
-
-        tk.Label(c_frame, text="Thickness: ").pack(side=tk.LEFT)
-        spn_w = ttk.Spinbox(c_frame, from_=0.8, to=5.0, increment=0.2, textvariable=self.var_cb_width, width=5)
-        spn_w.pack(side=tk.LEFT)
-        tk.Label(c_frame, text=" pt").pack(side=tk.LEFT)
-
-        grp_auto = ttk.LabelFrame(parent, text="Auto-Fill Options", padding=10)
-        grp_auto.pack(fill=tk.X)
-        cb_auto = ttk.Checkbutton(grp_auto, text="Automatically fill checkboxes during form field detection", variable=self.var_cb_autofill)
-        cb_auto.pack(anchor=tk.W)
-
     def _populate_font_listbox(self, font_list: List[str]) -> None:
         self.font_listbox.delete(0, tk.END)
         cur = self.var_font_family.get().lower()
@@ -547,12 +493,6 @@ class FormFillAISettingsDialog:
         self.swatch_font.config(bg=hex_val)
         self._update_preview()
 
-    def _pick_cb_color(self) -> None:
-        c = colorchooser.askcolor(color=self.var_cb_color.get(), title="Select Checkbox Color")
-        if c and c[1]:
-            self.var_cb_color.set(c[1].upper())
-            self.swatch_cb.config(bg=c[1].upper())
-
     def _update_preview(self) -> None:
         font_name = self.var_font_family.get() or "Sans"
         size = int(self.var_font_size.get()) if self.var_font_mode.get() == "fixed" else 12
@@ -576,13 +516,6 @@ class FormFillAISettingsDialog:
         self.config["font_size_mode"] = self.var_font_mode.get()
         self.config["font_size"] = round(float(self.var_font_size.get()), 1)
         self.config["font_color_hex"] = self.var_font_color.get()
-
-        self.config["checkbox_style"] = self.var_cb_style.get()
-        self.config["checkbox_color_hex"] = self.var_cb_color.get()
-        self.config["checkbox_stroke_width"] = round(float(self.var_cb_width.get()), 1)
-        self.config["checkbox_custom_char"] = self.var_cb_custom.get()
-        self.config["auto_fill_checkboxes"] = self.var_cb_autofill.get()
-
         self.config["show_field_borders"] = self.var_borders.get()
 
         save_config(self.config)
