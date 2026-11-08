@@ -55,35 +55,28 @@ The plugin natively bundles an **ONNX Runtime engine**—meaning no massive GPU 
 
 ## 📥 Installation
 
-### Method 1: Graphical / 1-Click (Recommended)
+### 1-Click Graphical Installer & Uninstaller (All Platforms)
 
-Run the Python installer from this folder:
+Run the Python manager from this folder:
 
 ```bash
 python3 install.py
 ```
 
-A friendly installer window will appear. Click **Install FormFillAI Now**, and you're done!
+A friendly management window appears with detected packaging versions (RPM, DEB, Flatpak, Snap, macOS, Windows) and two primary 1-click buttons:
+* **`✨ 1-Click Install FormFillAI`**: Automatically copies plugin files, configures `settings.xml`, and links dependencies.
+* **`🗑️ 1-Click Complete Uninstall`**: Completely removes all plugin files, clears cache, and restores `settings.xml` cleanly.
 
 ---
 
-### Method 2: Command Line (Linux & macOS)
+### Command Line Installation & Uninstallation
 
-Open your terminal in the repository directory and run:
-
-```bash
-./install.sh
-```
-
----
-
-### Method 3: Windows
-
-Double-click `install.bat` or run:
-
-```cmd
-install.bat
-```
+* **Linux & macOS (Native, Flatpak, Snap):**
+  * **Install**: `./install.sh` or `python3 install.py --install`
+  * **Complete Uninstall**: `./uninstall.sh` or `python3 install.py --uninstall`
+* **Windows (EXE, Portable):**
+  * **Install**: Double-click `install.bat` or `python install.py --install`
+  * **Complete Uninstall**: Double-click `uninstall.bat` or `python install.py --uninstall`
 
 ---
 
@@ -91,23 +84,21 @@ install.bat
 
 | Shortcut | Action | Description |
 |---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Detects text fields and checkboxes; creates bounded fillable overlays in Pure Black Nikosh font |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Detects text fields and creates bounded fillable overlays in Pure Black Nikosh font |
 | | **Detect Full PDF** | High-speed batch detection across all PDF pages in memory (~2.8s) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Removes all dashed guide borders and unfilled placeholders, leaving 100% naturally typed form |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | **Add Checkbox Here** | Choose shape (`✓`, `✗`, `■`, `●`, `☐`); drops onto PDF with handles to resize & drag anywhere |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Configure 446+ system fonts (Nikosh Bangla default), models, and colors |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Configure 446+ system fonts (Nikosh Bangla default), AI models, and sensitivities |
 
 ---
 
 ## 🖥️ Menu Actions (`Plugin > FormFillAI`)
 
-FormFillAI provides a streamlined 5-tool workflow:
+FormFillAI provides a streamlined 4-tool workflow:
 
-1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes matching the exact boundaries (`x, y, width, height`) of detected fields, plus subtle dashed guidelines. Clicking inside any field immediately activates typing with Pure Black Nikosh font.
+1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes matching the exact boundaries (`x, y, width, height`) of detected fields. Clicking inside any field immediately activates typing with Pure Black Nikosh font.
 2. **FormFillAI: Detect Full PDF**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
-3. **FormFillAI: Remove Guide Borders** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>): Deletes all dashed guide lines and unfilled placeholders, retaining 100% of user-typed text and checkmarks for a clean, naturally typed form ready for PDF export.
-4. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): No selection needed beforehand. Prompts you to pick a shape (`✓ Check`, `✗ Cross`, `■ Square`, `● Bullet`, `☐ Box`), immediately drops the shape onto the PDF, and activates selection resize handles so you can resize and reposition it freely.
-5. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts, AI model (FFDNet-S / FFDNet-L), and colors.
+3. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): No selection needed beforehand. Prompts you to pick a shape (`✓ Check`, `✗ Cross`, `■ Square`, `● Bullet`, `☐ Box`), immediately drops the shape onto the PDF in Pure Black ink, and activates selection resize handles so you can resize and reposition it freely.
+4. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts (with Bangla preview) and AI model sensitivity (`FFDNet-S` / `FFDNet-L`).
 
 ---
 

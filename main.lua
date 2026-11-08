@@ -3,9 +3,8 @@
 -- Features:
 --   1. FormFillAI: Detect Current Page (<Control><Shift>d)
 --   2. FormFillAI: Detect Full PDF
---   3. FormFillAI: Remove Guide Borders (<Control><Shift>r)
---   4. FormFillAI: Add Checkbox Here (<Control><Shift>x)
---   5. FormFillAI: Settings and Preferences (<Control><Shift>s)
+--   3. FormFillAI: Add Checkbox Here (<Control><Shift>x)
+--   4. FormFillAI: Settings and Preferences (<Control><Shift>s)
 --
 
 local json = nil
@@ -20,13 +19,12 @@ local PluginState = {
   checkboxes = {},       -- [pageIdx] = list of {x, y, width, height, isChecked, strokeRefs}
   textboxes = {},        -- [pageIdx] = list of {x, y, width, height}
   textBoxRefs = {},      -- [pageIdx] = list of lightuserdata text references
-  guideBorderRefs = {},  -- [pageIdx] = list of lightuserdata stroke references for guide borders
   config = nil,
   pluginDir = nil,
 }
 
 -- ---------------------------------------------------------------------------
--- Path and Environment Helpers
+-- Path and Environment Helpers (Multiplatform: Linux Native, Flatpak, Snap, macOS, Windows)
 -- ---------------------------------------------------------------------------
 
 local function fileExists(path)
@@ -42,13 +40,35 @@ end
 local function getPluginDirectory()
   if PluginState.pluginDir then return PluginState.pluginDir end
 
+  -- 1. Try resolving directory directly from the loaded main.lua source path
+  local src = debug.getinfo(1, "S")
+  if src and src.source and src.source:sub(1, 1) == "@" then
+    local path = src.source:sub(2)
+    local dir = path:match("^(.*)[/\\]")
+    if dir and fileExists(dir .. "/plugin.ini") then
+      PluginState.pluginDir = dir
+      return dir
+    end
+  end
+
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
+  -- 2. Multiplatform & Multi-packaging candidates
   local candidateDirs = {
+    -- Linux Native (RPM, DEB, Arch, Source)
     home .. "/.config/xournalpp/plugins/FormFillAI",
-    home .. "/Desktop/FormFillAI",
+    -- Linux Flatpak sandbox
+    home .. "/.var/app/com.github.xournalpp.xournalpp/config/xournalpp/plugins/FormFillAI",
+    -- Linux Snap sandbox
+    home .. "/snap/xournalpp/current/.config/xournalpp/plugins/FormFillAI",
+    home .. "/snap/xournalpp/common/.config/xournalpp/plugins/FormFillAI",
+    -- macOS (DMG, Homebrew)
     home .. "/Library/Application Support/xournalpp/plugins/FormFillAI",
+    -- Windows (EXE, Portable, LocalAppData & AppData)
     (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI",
+    (os.getenv("APPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI",
+    -- Workspace fallback
+    home .. "/Desktop/FormFillAI",
   }
 
   for _, dir in ipairs(candidateDirs) do
@@ -67,17 +87,28 @@ local function getPythonExecutable()
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
   local candidates = {
+    -- Dedicated virtual environments
     dir .. "/.venv/bin/python",
+    dir .. "/.venv/bin/python3",
+    dir .. "\\.venv\\Scripts\\python.exe",
     home .. "/.config/xournalpp/plugins/FormFillAI/.venv/bin/python",
+    home .. "/.var/app/com.github.xournalpp.xournalpp/config/xournalpp/plugins/FormFillAI/.venv/bin/python",
     home .. "/Desktop/FormFillAI/.venv/bin/python",
+    (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI\\.venv\\Scripts\\python.exe",
+    -- macOS Homebrew / Framework Python
+    "/opt/homebrew/bin/python3",
+    "/usr/local/bin/python3",
+    "/Library/Frameworks/Python.framework/Versions/Current/bin/python3",
+    -- Pyenv / Version managers
     home .. "/.pyenv/shims/python3",
     home .. "/.pyenv/shims/python",
-    dir .. "\\.venv\\Scripts\\python.exe",
-    home .. "\\.config\\xournalpp\\plugins\\FormFillAI\\.venv\\Scripts\\python.exe",
-    (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI\\.venv\\Scripts\\python.exe",
+    -- Linux / Unix standard paths
     "/usr/bin/python3",
+    "/usr/bin/python",
     "python3",
-    "python"
+    "python",
+    "py -3",
+    "py"
   }
 
   for _, path in ipairs(candidates) do
@@ -109,12 +140,18 @@ end
 
 local function loadConfig()
   local dir = getPluginDirectory()
-  local cfgPath = dir .. "/config.json"
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
-  local xdgPath = home .. "/.config/xournalpp/plugins/FormFillAI/config.json"
+
+  local candidateConfigs = {
+    dir .. "/config.json",
+    home .. "/.config/xournalpp/plugins/FormFillAI/config.json",
+    home .. "/.var/app/com.github.xournalpp.xournalpp/config/xournalpp/plugins/FormFillAI/config.json",
+    home .. "/Library/Application Support/xournalpp/plugins/FormFillAI/config.json",
+    (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI\\config.json"
+  }
 
   local content = nil
-  for _, path in ipairs({ xdgPath, cfgPath }) do
+  for _, path in ipairs(candidateConfigs) do
     local f = io.open(path, "r")
     if f then
       content = f:read("*all")
@@ -131,21 +168,22 @@ local function loadConfig()
     end
   end
 
-  -- Default fallback configuration (Pure Black text color 0x000000, Nikosh font)
+  -- Default fallback configuration (Pure Black text & shapes 0x000000, Nikosh font)
   PluginState.config = {
     model_name = "FFDNet-S",
     confidence = 0.28,
     font_family = "Nikosh",
     font_size_mode = "auto",
     font_size = 11.0,
-    font_color = 0x000000,       -- Default text color: Pure Black
+    font_color = 0x000000,       -- Pure Black text
     font_color_hex = "#000000",
     checkbox_style = "check",
     checkbox_stroke_width = 1.6,
-    checkbox_color = 0x002060,
+    checkbox_color = 0x000000,   -- Pure Black shapes
+    checkbox_color_hex = "#000000",
     checkbox_custom_char = "✓",
     auto_fill_checkboxes = false,
-    show_field_borders = true,
+    show_field_borders = false,  -- No dashed borders
     border_color = 0x90B0D0,
     border_width = 0.8
   }
@@ -153,7 +191,7 @@ local function loadConfig()
 end
 
 -- ---------------------------------------------------------------------------
--- UI & Menu Initialization (Retaining Strictly the 5 Requested Options)
+-- UI & Menu Initialization (4 Core Actions)
 -- ---------------------------------------------------------------------------
 
 function initUi()
@@ -173,38 +211,31 @@ function initUi()
     callback = "onDetectFullPdf"
   })
 
-  -- 3. Remove guide borders (Removes all dashed guide borders and artifacts, retaining typed text)
-  app.registerUi({
-    menu = "FormFillAI: Remove Guide Borders",
-    callback = "onRemoveGuideBorders",
-    accelerator = "<Control><Shift>r"
-  })
-
-  -- 4. Add checkbox here (Choose shape: Check ✓, Cross ✗, Square ■, Bullet ●, Box ☐; drops & resizes with handles)
+  -- 3. Add checkbox here (Choose shape: Check ✓, Cross ✗, Square ■, Bullet ●, Box ☐; drops & resizes with handles)
   app.registerUi({
     menu = "FormFillAI: Add Checkbox Here",
     callback = "onAddCheckboxPrompt",
     accelerator = "<Control><Shift>x"
   })
 
-  -- 5. Settings and Preferences
+  -- 4. Settings and Preferences
   app.registerUi({
     menu = "FormFillAI: Settings and Preferences",
     callback = "onOpenSettings",
     accelerator = "<Control><Shift>s"
   })
 
-  print("[FormFillAI] Registered standard 5-tool workflow successfully.")
+  print("[FormFillAI] Registered standard 4-tool workflow successfully.")
 end
 
 -- ---------------------------------------------------------------------------
--- Stroke & Shape Generator Helpers
+-- Stroke & Shape Generator Helpers (Pure Black Color 0x000000)
 -- ---------------------------------------------------------------------------
 
 local function createCheckmarkStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
   local strokeW = width or math.max(1.5, w * 0.1)
-  local c = color or 0x002060
+  local c = color or 0x000000 -- Pure Black
 
   return {
     {
@@ -222,7 +253,7 @@ end
 local function createCrossStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
   local strokeW = width or math.max(1.5, w * 0.1)
-  local c = color or 0x002060
+  local c = color or 0x000000 -- Pure Black
 
   return {
     {
@@ -248,7 +279,7 @@ end
 
 local function createSquareStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
-  local c = color or 0x002060
+  local c = color or 0x000000 -- Pure Black
   return {
     {
       x = { x + 0.20 * w, x + 0.80 * w, x + 0.80 * w, x + 0.20 * w, x + 0.20 * w },
@@ -264,7 +295,7 @@ end
 
 local function createBulletStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
-  local c = color or 0x002060
+  local c = color or 0x000000 -- Pure Black
   local midX = x + w / 2.0
   local midY = y + h / 2.0
   local r = 0.28 * math.min(w, h)
@@ -291,7 +322,7 @@ end
 
 local function createEmptyBoxStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
-  local c = color or 0x002060
+  local c = color or 0x000000 -- Pure Black
   local sw = width or 1.2
 
   return {
@@ -654,135 +685,14 @@ function onDetectFullPdf()
     "• Font: %s (Pure Black)\n\n" ..
     "👉 Next Steps:\n" ..
     "1. Click inside any form field to type directly in Bengali.\n" ..
-    "2. Use 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks/shapes and resize them.\n" ..
-    "3. Use 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) when done to clean any unfilled placeholders.",
+    "2. Use 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks/shapes and resize them.",
     totalPages, counts.text_boxes or 0, config.font_family or "Nikosh"
   )
   app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
 end
 
 -- ---------------------------------------------------------------------------
--- 3. Remove Guide Borders (Removes all dashed borders & artifacts; retains typed text)
--- ---------------------------------------------------------------------------
-
-function onRemoveGuideBorders()
-  local doc = app.getDocumentStructure()
-  if not doc or not doc.pages then return end
-  local pageIdx = doc.currentPage or 1
-
-  -- Activate Selection Tool so delete action operates properly
-  pcall(function()
-    app.changeActionState("select-tool", app.C.Tool_selectRect)
-  end)
-
-  -- 1. Remove all tracked guide border strokes
-  local refs = PluginState.guideBorderRefs[pageIdx]
-  if refs and #refs > 0 then
-    app.clearSelection()
-    app.addToSelection(refs)
-    app.activateAction("delete")
-    PluginState.guideBorderRefs[pageIdx] = nil
-  end
-
-  -- 2. Scan layer for any remaining dashed guide strokes (around inputs and checkboxes)
-  local strokes = app.getStrokes("layer") or {}
-  local dashedRefs = {}
-  for _, s in ipairs(strokes) do
-    if (s.lineStyle == "dash" or s.color == 0x90B0D0 or s.color == 9482448) and s.ref then
-      table.insert(dashedRefs, s.ref)
-    end
-  end
-  if #dashedRefs > 0 then
-    app.clearSelection()
-    app.addToSelection(dashedRefs)
-    app.activateAction("delete")
-  end
-
-  -- 3. Clean up unfilled text overlays and trim non-breaking spaces from user-typed text
-  -- ALL TEXT TYPED BY THE USER IS 100% PRESERVED AND RETAINED!
-  local texts = app.getTexts("layer") or {}
-  local unfilledRefs = {}
-  local toUpdate = {}
-  local userTextCount = 0
-
-  for _, t in ipairs(texts) do
-    local str = t.text or ""
-    local meaningful = str:gsub("\xc2\xa0", ""):gsub("%s", "")
-    if meaningful == "" or meaningful == "[ ... ]" or meaningful == "..." then
-      if t.ref then table.insert(unfilledRefs, t.ref) end
-    else
-      userTextCount = userTextCount + 1
-      -- Clean leading and trailing non-breaking spaces from user-typed text
-      local trimmed = str
-      while trimmed:sub(1, 2) == "\xc2\xa0" do
-        trimmed = trimmed:sub(3)
-      end
-      while trimmed:sub(-2) == "\xc2\xa0" do
-        trimmed = trimmed:sub(1, -3)
-      end
-      if trimmed ~= str and t.ref then
-        table.insert(toUpdate, {
-          oldRef = t.ref,
-          text = trimmed,
-          font = t.font,
-          color = t.color or 0x000000,
-          x = t.x,
-          y = t.y,
-          wrap = t.width
-        })
-      end
-    end
-  end
-
-  if #unfilledRefs > 0 then
-    app.clearSelection()
-    app.addToSelection(unfilledRefs)
-    app.activateAction("delete")
-  end
-
-  if #toUpdate > 0 then
-    local oldRefs = {}
-    local newTexts = {}
-    for _, item in ipairs(toUpdate) do
-      table.insert(oldRefs, item.oldRef)
-      table.insert(newTexts, {
-        text = item.text,
-        font = item.font,
-        color = item.color,
-        x = item.x,
-        y = item.y,
-        wrap = item.wrap
-      })
-    end
-    app.clearSelection()
-    app.addToSelection(oldRefs)
-    app.activateAction("delete")
-    app.addTexts({ texts = newTexts, allowUndoRedoAction = "grouped" })
-  end
-
-  -- Return to text tool
-  pcall(function()
-    app.changeActionState("select-tool", app.C.Tool_text)
-  end)
-
-  app.refreshPage()
-
-  app.openDialog(
-    string.format(
-      "✨ Form Cleanup Complete!\n\n" ..
-      "• Cleaned all unfilled field placeholders and guide borders.\n" ..
-      "• Preserved user-typed text fields: %d field(s)\n" ..
-      "• Preserved all placed checkmarks and shapes.\n\n" ..
-      "Your form is naturally typed and ready to save or export!",
-      userTextCount
-    ),
-    { "OK" },
-    "FormFillAINoopCallback"
-  )
-end
-
--- ---------------------------------------------------------------------------
--- 4. Add Checkbox Here (Choose shape: drops shape on PDF with handles to resize & reposition)
+-- 3. Add Checkbox Here (Choose shape: drops shape on PDF with handles to resize & reposition)
 -- ---------------------------------------------------------------------------
 
 function onAddCheckboxPrompt()
@@ -828,7 +738,7 @@ function cbOnChooseCheckboxShape(btn)
 
   ensureFormFillLayer()
 
-  local color = config.checkbox_color or 0x002060
+  local color = 0x000000 -- Requirement 2: Pure Black for all shapes
   local width = config.checkbox_stroke_width or 1.6
 
   local strokes = {}

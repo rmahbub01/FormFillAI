@@ -21,8 +21,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "font_color_hex": "#000000",       # Text color hex string for GUI
     "checkbox_style": "check",         # "check" (✓), "cross" (✗), "square" (■), "bullet" (●), "custom"
     "checkbox_stroke_width": 1.6,      # Stroke width for drawn checkboxes
-    "checkbox_color": 0x002060,        # Checkbox stroke color (RGB integer)
-    "checkbox_color_hex": "#002060",   # Checkbox stroke color hex string
+    "checkbox_color": 0x000000,        # Checkbox stroke color (Pure Black)
+    "checkbox_color_hex": "#000000",   # Checkbox stroke color hex string
     "checkbox_custom_char": "✓",       # Custom character glyph if style == "custom"
     "auto_fill_checkboxes": False,     # Whether to automatically fill checkboxes on detection
     "show_field_borders": False,       # Do not draw dashed borders (pure fillable text fields)
