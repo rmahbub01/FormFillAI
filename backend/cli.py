@@ -37,6 +37,13 @@ def main() -> None:
     # Subcommand: settings
     subparsers.add_parser("settings", help="Open visual settings and tools dialog")
 
+    # Subcommand: checkboxes
+    p_cb = subparsers.add_parser("checkboxes", help="Open FormFillAI Checkbox Manager")
+    p_cb.add_argument("--data", type=str, required=True, help="Path to detection JSON")
+    p_cb.add_argument("--out", type=str, required=True, help="Path to applied JSON output")
+    p_cb.add_argument("--pdf", type=str, default=None, help="Background PDF path for thumbnail crops")
+    p_cb.add_argument("--page", type=int, default=1, help="Page number (1-based)")
+
     # Subcommand: assistant
     p_ast = subparsers.add_parser("assistant", help="Open FormFillAI Assistant & Checkbox Manager")
     p_ast.add_argument("--data", type=str, required=True, help="Path to detection JSON")
@@ -100,6 +107,10 @@ def main() -> None:
     elif args.command == "settings":
         from gui_settings import launch_gui
         launch_gui()
+
+    elif args.command == "checkboxes":
+        from gui_checkboxes import launch_checkbox_manager
+        launch_checkbox_manager(args.data, args.out, args.pdf, args.page)
 
     elif args.command == "assistant":
         from gui_assistant import launch_assistant

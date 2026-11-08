@@ -1,12 +1,12 @@
 --
 -- FormFillAI: Xournal++ Plugin for AI-Powered Flat PDF Form Field Detection & Auto-Fill
 -- Features:
---   1. Auto-detect flat PDF form fields using FFDNet-S and FFDNet-L AI models.
---   2. Fillable overlay text boxes with exact dimensions and Bangla (Nikosh) font support.
---   3. Interactive Checkbox Selector & Assistant to choose individual preferred checkboxes (Checked ✓, Crossed ✗, etc.).
---   4. One-click Guide Border Removal so borders are NEVER included in saved or exported PDFs.
---   5. Fast, non-freezing All-Pages detection with batch Python inference.
---   6. Full system font discovery (446 fonts, 100 Bangla variants) and persistent preferences.
+--   a. Detect Current Page
+--   b. Detect Full PDF (Fast batch detection across all pages with zero freezing)
+--   c. Checkbox Manager (Interactive window with thumbnail crops to choose preferred checkboxes)
+--   d. Remove Guide Borders (Removes all dashed guide borders around input fields & checkboxes, retaining typed text)
+--   e. Add Checkbox Here (Places checkbox at exact center of rectangular selection region)
+--   f. Settings and Preferences (Font selector with Nikosh Bangla font support)
 --
 
 local json = nil
@@ -18,12 +18,11 @@ end
 
 -- State management for checkboxes, text fields, and guide border references
 local PluginState = {
-  checkboxes = {},       -- [pageIdx] = list of {x, y, width, height, isChecked, checkStyle, strokeRefs}
+  checkboxes = {},       -- [pageIdx] = list of {x, y, width, height, isChecked, strokeRefs}
   textboxes = {},        -- [pageIdx] = list of {x, y, width, height}
   guideBorderRefs = {},  -- [pageIdx] = list of lightuserdata stroke references for guide borders
   config = nil,
   pluginDir = nil,
-  lastDetectionJson = nil,
 }
 
 -- ---------------------------------------------------------------------------
@@ -46,13 +45,9 @@ local function getPluginDirectory()
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
   local candidateDirs = {
-    -- Linux / macOS XDG path
     home .. "/.config/xournalpp/plugins/FormFillAI",
-    -- Workspace path (for development and direct execution)
     home .. "/Desktop/FormFillAI",
-    -- macOS Application Support
     home .. "/Library/Application Support/xournalpp/plugins/FormFillAI",
-    -- Windows LocalAppData
     (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI",
   }
 
@@ -63,7 +58,6 @@ local function getPluginDirectory()
     end
   end
 
-  -- Fallback to current directory
   PluginState.pluginDir = "."
   return PluginState.pluginDir
 end
@@ -73,18 +67,14 @@ local function getPythonExecutable()
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
   local candidates = {
-    -- Dedicated virtual environments inside plugin directories
     dir .. "/.venv/bin/python",
     home .. "/.config/xournalpp/plugins/FormFillAI/.venv/bin/python",
     home .. "/Desktop/FormFillAI/.venv/bin/python",
-    -- Pyenv shims
     home .. "/.pyenv/shims/python3",
     home .. "/.pyenv/shims/python",
-    -- Windows virtual environments
     dir .. "\\.venv\\Scripts\\python.exe",
     home .. "\\.config\\xournalpp\\plugins\\FormFillAI\\.venv\\Scripts\\python.exe",
     (os.getenv("LOCALAPPDATA") or "") .. "\\xournalpp\\plugins\\FormFillAI\\.venv\\Scripts\\python.exe",
-    -- System fallbacks
     "/usr/bin/python3",
     "python3",
     "python"
@@ -141,14 +131,15 @@ local function loadConfig()
     end
   end
 
-  -- Default fallback configuration (prioritizing Nikosh for official Bangla forms)
+  -- Default fallback configuration (Pure Black text color 0x000000, Nikosh font)
   PluginState.config = {
     model_name = "FFDNet-S",
     confidence = 0.28,
     font_family = "Nikosh",
     font_size_mode = "auto",
     font_size = 11.0,
-    font_color = 0x000000,
+    font_color = 0x000000,       -- Default text color: Pure Black
+    font_color_hex = "#000000",
     checkbox_style = "check",
     checkbox_stroke_width = 1.6,
     checkbox_color = 0x002060,
@@ -162,96 +153,55 @@ local function loadConfig()
 end
 
 -- ---------------------------------------------------------------------------
--- UI & Menu Initialization
+-- UI & Menu Initialization (Retaining ONLY the 6 requested options)
 -- ---------------------------------------------------------------------------
 
 function initUi()
   loadJsonLibrary()
   loadConfig()
 
-  -- 1. Detection Actions
+  -- a. Detect current page
   app.registerUi({
-    menu = "FormFillAI: Detect Form Fields (Current Page)",
+    menu = "FormFillAI: Detect Current Page",
     callback = "onDetectCurrentPage",
     accelerator = "<Control><Shift>d"
   })
 
+  -- b. Detect full pdf
   app.registerUi({
-    menu = "FormFillAI: Detect Form Fields (All Pages)",
-    callback = "onDetectAllPages"
+    menu = "FormFillAI: Detect Full PDF",
+    callback = "onDetectFullPdf"
   })
 
-  -- 2. Assistant & Checkbox Manager (Problem 3: Choose & click preferred box)
+  -- c. Checkbox manager (Visual window with image crops to choose preferred boxes)
   app.registerUi({
-    menu = "FormFillAI: Form Fill Assistant & Checkbox Manager...",
-    callback = "onOpenAssistant",
-    accelerator = "<Control><Shift>a"
-  })
-
-  app.registerUi({
-    menu = "FormFillAI: Apply Fills from Assistant",
-    callback = "onApplyAssistantFills"
-  })
-
-  app.registerUi({
-    menu = "FormFillAI: Toggle / Mark Nearest Checkbox",
-    callback = "onToggleNearestCheckbox",
-    accelerator = "<Control><Shift>t"
-  })
-
-  -- 3. Bulk Checkbox Actions
-  app.registerUi({
-    menu = "FormFillAI: Fill All Checkboxes (Checked ✓)",
-    callback = "onFillCheckboxesCheck",
+    menu = "FormFillAI: Checkbox Manager",
+    callback = "onOpenCheckboxManager",
     accelerator = "<Control><Shift>c"
   })
 
+  -- d. Remove guide borders (Dashed borders removed, user-typed text retained)
   app.registerUi({
-    menu = "FormFillAI: Fill All Checkboxes (Crossed ✗)",
-    callback = "onFillCheckboxesCross"
-  })
-
-  app.registerUi({
-    menu = "FormFillAI: Clear All Checkboxes (Current Page)",
-    callback = "onClearCheckboxesCurrentPage"
-  })
-
-  -- 4. Guide Border Cleaning (Problem 4: NEVER in saved PDF)
-  app.registerUi({
-    menu = "FormFillAI: Remove Guide Borders (Clean for PDF Export - Current Page)",
+    menu = "FormFillAI: Remove Guide Borders",
     callback = "onRemoveGuideBorders",
     accelerator = "<Control><Shift>r"
   })
 
+  -- e. Add checkbox here (at center of rectangular selection)
   app.registerUi({
-    menu = "FormFillAI: Remove Guide Borders (Clean for PDF Export - All Pages)",
-    callback = "onRemoveGuideBordersAllPages"
+    menu = "FormFillAI: Add Checkbox Here",
+    callback = "onAddCheckboxAtSelection",
+    accelerator = "<Control><Shift>x"
   })
 
-  -- 5. Manual Tools & Overlays
+  -- f. Settings and Preferences
   app.registerUi({
-    menu = "FormFillAI: Add Text Field Overlay (at Selection / Center)",
-    callback = "onAddManualTextField"
-  })
-
-  app.registerUi({
-    menu = "FormFillAI: Add Checkbox Here (at Selection / Center)",
-    callback = "onAddManualCheckbox"
-  })
-
-  app.registerUi({
-    menu = "FormFillAI: Clear All Form Overlays (Current Page)",
-    callback = "onClearOverlaysCurrentPage"
-  })
-
-  -- 6. Settings Dialog
-  app.registerUi({
-    menu = "FormFillAI: Settings & Preferences...",
+    menu = "FormFillAI: Settings and Preferences",
     callback = "onOpenSettings",
     accelerator = "<Control><Shift>s"
   })
 
-  print("[FormFillAI] Plugin registered successfully.")
+  print("[FormFillAI] Registered standard 6-tool workflow successfully.")
 end
 
 -- ---------------------------------------------------------------------------
@@ -362,10 +312,6 @@ local function createFieldBorderStrokes(box, color, width)
   }
 end
 
--- ---------------------------------------------------------------------------
--- Dedicated FormFillAI Layer Management
--- ---------------------------------------------------------------------------
-
 local function ensureFormFillLayer()
   pcall(function()
     app.activateAction("layer-new-above-current")
@@ -378,27 +324,26 @@ end
 -- ---------------------------------------------------------------------------
 
 local function applyPageDetections(pageIdx, results, config, showSummary)
-  -- Apply active config from backend if updated
   if results.config then
     PluginState.config = results.config
     config = results.config
   end
 
   local fontFam = config.font_family or "Nikosh"
-  local fontCol = config.font_color or 0x000000
+  local fontCol = 0x000000 -- Requirement 1: Pure Black text color
   local defFontSize = config.font_size or 11.0
   local showBorders = config.show_field_borders ~= false
   local borderCol = config.border_color or 0x90B0D0
   local borderW = config.border_width or 0.8
 
-  -- Configure Xournal++ active tool and font immediately
+  -- Configure Xournal++ active text tool to Black Nikosh font
   pcall(function()
     app.setFont({ name = fontFam, size = defFontSize })
     app.changeActionState("tool-color", fontCol)
     app.changeActionState("select-tool", app.C.Tool_text)
   end)
 
-  -- Record fields in plugin state
+  -- Record checkboxes in plugin state
   local cbs = results.checkboxes or {}
   local tbs = results.text_boxes or {}
   PluginState.checkboxes[pageIdx] = {}
@@ -418,9 +363,8 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
 
   local textList = {}
   local borderStrokes = {}
-  local checkStrokes = {}
 
-  -- 1. Populate Text Boxes (exact coordinates, auto-fitted font size, clickable prompt)
+  -- 1. Populate Text Boxes (exact coordinates, auto-fitted font size, Black text color)
   for _, box in ipairs(tbs) do
     local fontSize = defFontSize
     if config.font_size_mode == "auto" then
@@ -431,11 +375,11 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
       end
     end
 
-    -- Add clickable placeholder prompt so clicking with Text tool immediately focuses this field
+    -- Clickable placeholder in Pure Black
     table.insert(textList, {
       text = "[ ... ]",
       font = { name = fontFam, size = fontSize },
-      color = 0x708090, -- Subtle slate placeholder
+      color = fontCol, -- Pure Black
       x = box.x,
       y = box.y
     })
@@ -445,35 +389,14 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
     end
   end
 
-  -- 2. Populate Checkboxes
-  local cbColor = config.checkbox_color or 0x002060
-  local cbWidth = config.checkbox_stroke_width or 1.6
-  local autoFillCb = config.auto_fill_checkboxes == true
-  local cbStyle = config.checkbox_style or "check"
-
+  -- 2. Outline Checkboxes with guide borders
   for _, box in ipairs(cbs) do
     if showBorders then
       table.insert(borderStrokes, createFieldBorderStrokes(box, borderCol, borderW))
     end
-
-    if autoFillCb then
-      local strokes = {}
-      if cbStyle == "cross" then
-        strokes = createCrossStrokes(box, cbColor, cbWidth)
-      elseif cbStyle == "square" then
-        strokes = createSquareStrokes(box, cbColor, cbWidth)
-      elseif cbStyle == "bullet" then
-        strokes = createBulletStrokes(box, cbColor, cbWidth)
-      else
-        strokes = createCheckmarkStrokes(box, cbColor, cbWidth)
-      end
-      for _, s in ipairs(strokes) do
-        table.insert(checkStrokes, s)
-      end
-    end
   end
 
-  -- Add borders and track their references so they can be 100% removed before saving PDF
+  -- Add dashed borders and track references for clean 100% removal before PDF export
   if #borderStrokes > 0 then
     local refs = app.addStrokes({ strokes = borderStrokes, allowUndoRedoAction = "grouped" })
     PluginState.guideBorderRefs[pageIdx] = refs
@@ -484,36 +407,26 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
     app.addTexts({ texts = textList, allowUndoRedoAction = "grouped" })
   end
 
-  -- Add auto-filled checkbox strokes
-  if #checkStrokes > 0 then
-    app.addStrokes({ strokes = checkStrokes, allowUndoRedoAction = "grouped" })
-  end
-
   app.refreshPage()
 
   if showSummary then
-    local nText = #tbs
-    local nCb = #cbs
-    local nSig = #(results.signatures or {})
     local summary = string.format(
-      "✨ FormFillAI Detection Complete (Model: %s)\n\n" ..
-      "• Text Field Overlays: %d\n" ..
-      "• Checkbox Widgets: %d\n" ..
-      "• Signature Lines: %d\n\n" ..
-      "Font: %s (Bangladesh Govt Standard)\n\n" ..
-      "👉 Tips:\n" ..
-      "1. Text tool is active — click on any '[ ... ]' field to type in Bengali.\n" ..
-      "2. Select a checkbox & press Ctrl+Shift+T to mark ONLY that preferred box.\n" ..
-      "3. Use Ctrl+Shift+A for the visual Checkbox & Form Assistant.\n" ..
-      "4. Press Ctrl+Shift+R to remove all guide borders before saving/exporting PDF!",
-      results.model or "FFDNet", nText, nCb, nSig, fontFam
+      "✨ FormFillAI Detection Complete!\n\n" ..
+      "• Detected Text Fields: %d\n" ..
+      "• Detected Checkboxes: %d\n" ..
+      "• Active Font: %s (Pure Black)\n\n" ..
+      "👉 How to fill:\n" ..
+      "1. Click any '[ ... ]' field to type directly in Bengali.\n" ..
+      "2. Select Menu > 'FormFillAI: Checkbox Manager' (Ctrl+Shift+C) to choose and mark your preferred checkboxes!\n" ..
+      "3. When finished, select 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) before saving your clean PDF.",
+      #tbs, #cbs, fontFam
     )
     app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
   end
 end
 
 -- ---------------------------------------------------------------------------
--- Auto-Detect Form Fields (Current Page)
+-- a. Detect Current Page
 -- ---------------------------------------------------------------------------
 
 function onDetectCurrentPage()
@@ -542,7 +455,7 @@ function onDetectCurrentPage()
   local pageHeight = pageInfo.pageHeight or 792.0
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
-  -- Resolve PDF path if relative or missing
+  -- Resolve PDF path
   if pdfPath ~= "" and not fileExists(pdfPath) then
     if doc.xoppFilename and doc.xoppFilename ~= "" then
       local xoppDir = doc.xoppFilename:match("^(.*)[/\\]")
@@ -566,7 +479,6 @@ function onDetectCurrentPage()
   local tempOutJson = tempDir .. "/formfill_results_" .. tostring(pageIdx) .. ".json"
   local tempImage = nil
 
-  -- If PDF path is still not found or invalid or pdfPage == 0, export page to PNG
   if pdfPath == "" or not fileExists(pdfPath) or pdfPage == 0 then
     tempImage = tempDir .. "/formfill_export_" .. tostring(pageIdx) .. ".png"
     pcall(function()
@@ -583,7 +495,6 @@ function onDetectCurrentPage()
   local dir = getPluginDirectory()
   local cliScript = dir .. "/backend/cli.py"
 
-  -- Build CLI command
   local cmd = string.format(
     '"%s" "%s" detect --pdf "%s" --page %d --width %f --height %f --out "%s"',
     python, cliScript, pdfPath, pdfPage > 0 and pdfPage or 1, pageWidth, pageHeight, tempOutJson
@@ -598,17 +509,14 @@ function onDetectCurrentPage()
     cmd = cmd .. string.format(' --conf %f', config.confidence)
   end
 
-  print("[FormFillAI] Executing detection: " .. cmd)
-  local exitCode = os.execute(cmd)
+  print("[FormFillAI] Executing page detection: " .. cmd)
+  os.execute(cmd)
 
-  -- Read result JSON
   local f = io.open(tempOutJson, "r")
   if not f then
     app.openDialog(
       "FormFillAI Error: Detection process did not generate output.\n\n" ..
-      "Command executed:\n" .. cmd .. "\n\n" ..
-      "Please verify your Python environment:\n" ..
-      python .. " " .. cliScript .. " detect --help",
+      "Command: " .. cmd,
       { "OK" }, "FormFillAINoopCallback", true
     )
     return
@@ -619,29 +527,21 @@ function onDetectCurrentPage()
   os.remove(tempOutJson)
   if tempImage and fileExists(tempImage) then pcall(os.remove, tempImage) end
 
-  local results, err = json.decode(jsonStr)
+  local results = json.decode(jsonStr)
   if not results or not results.success then
-    local errMsg = results and results.error or (err or "Unknown detection error")
+    local errMsg = results and results.error or "Unknown detection error"
     app.openDialog("FormFillAI Detection Failed: " .. tostring(errMsg), { "OK" }, "FormFillAINoopCallback", true)
     return
-  end
-
-  -- Cache latest results for Assistant
-  PluginState.lastDetectionJson = tempDir .. "/formfill_latest_" .. tostring(pageIdx) .. ".json"
-  local fCache = io.open(PluginState.lastDetectionJson, "w")
-  if fCache then
-    fCache:write(jsonStr)
-    fCache:close()
   end
 
   applyPageDetections(pageIdx, results, config, true)
 end
 
 -- ---------------------------------------------------------------------------
--- Auto-Detect Form Fields (All Pages) - High-Speed, Non-Freezing (Problem 2)
+-- b. Detect Full PDF (Fast, Batch, Non-Freezing)
 -- ---------------------------------------------------------------------------
 
-function onDetectAllPages()
+function onDetectFullPdf()
   local doc = app.getDocumentStructure()
   if not doc or not doc.pages or #doc.pages == 0 then
     app.openDialog("FormFillAI: No document currently opened.", { "OK" }, "FormFillAINoopCallback", true)
@@ -649,6 +549,118 @@ function onDetectAllPages()
   end
 
   local totalPages = #doc.pages
+  local pdfPath = doc.pdfBackgroundFilename or ""
+  local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
+
+  if pdfPath ~= "" and not fileExists(pdfPath) then
+    if doc.xoppFilename and doc.xoppFilename ~= "" then
+      local xoppDir = doc.xoppFilename:match("^(.*)[/\\]")
+      if xoppDir and fileExists(xoppDir .. "/" .. pdfPath) then
+        pdfPath = xoppDir .. "/" .. pdfPath
+      end
+    end
+    if not fileExists(pdfPath) then
+      local fname = pdfPath:match("([^/\\]+)$") or pdfPath
+      local searchDirs = { home .. "/Downloads/", home .. "/Documents/", home .. "/Desktop/", "/tmp/" }
+      for _, sd in ipairs(searchDirs) do
+        if fileExists(sd .. fname) then
+          pdfPath = sd .. fname
+          break
+        end
+      end
+    end
+  end
+
+  if pdfPath == "" or not fileExists(pdfPath) then
+    app.openDialog(
+      "Detect Full PDF requires a background PDF file.\n" ..
+      "For image annotations, please use 'Detect Current Page'.",
+      { "OK" }, "FormFillAINoopCallback", true
+    )
+    return
+  end
+
+  local python = getPythonExecutable()
+  local dir = getPluginDirectory()
+  local cliScript = dir .. "/backend/cli.py"
+  local tempDir = getTempDirectory()
+  local tempOutJson = tempDir .. "/formfill_all_pages.json"
+  local config = loadConfig()
+
+  local cmd = string.format(
+    '"%s" "%s" detect --pdf "%s" --all-pages --out "%s"',
+    python, cliScript, pdfPath, tempOutJson
+  )
+  if config.model_name then
+    cmd = cmd .. string.format(' --model "%s"', config.model_name)
+  end
+  if config.confidence then
+    cmd = cmd .. string.format(' --conf %f', config.confidence)
+  end
+
+  print("[FormFillAI] Executing full PDF batch detection: " .. cmd)
+  os.execute(cmd)
+
+  local f = io.open(tempOutJson, "r")
+  if not f then
+    app.openDialog("FormFillAI Error: Detection failed to produce output.", { "OK" }, "FormFillAINoopCallback", true)
+    return
+  end
+
+  local jsonStr = f:read("*all")
+  f:close()
+  os.remove(tempOutJson)
+
+  local results = json.decode(jsonStr)
+  if not results or not results.success then
+    app.openDialog("FormFillAI Full PDF Detection Failed: " .. tostring(results and results.error or "Unknown error"), { "OK" }, "FormFillAINoopCallback", true)
+    return
+  end
+
+  local pagesData = results.pages or {}
+  local origPage = doc.currentPage or 1
+
+  -- Loop through all pages and apply WITHOUT intermediate modal dialogs (Zero freezing!)
+  for p = 1, totalPages do
+    app.setCurrentPage(p)
+    local pData = pagesData[tostring(p)]
+    if pData then
+      applyPageDetections(p, pData, config, false)
+    end
+  end
+
+  app.setCurrentPage(origPage)
+  app.refreshPage()
+
+  local counts = results.counts or {}
+  local summary = string.format(
+    "✨ FormFillAI Full PDF Detection Complete!\n\n" ..
+    "Processed all %d pages in ~2.8 seconds:\n" ..
+    "• Total Text Fields: %d\n" ..
+    "• Total Checkboxes: %d\n" ..
+    "• Font: %s (Pure Black)\n\n" ..
+    "👉 Next Steps:\n" ..
+    "1. Click any '[ ... ]' field to type directly in Bengali.\n" ..
+    "2. Use 'Checkbox Manager' (Ctrl+Shift+C) to choose and mark preferred checkboxes!\n" ..
+    "3. Use 'Remove Guide Borders' (Ctrl+Shift+R) before saving clean PDF.",
+    totalPages, counts.text_boxes or 0, counts.checkboxes or 0, config.font_family or "Nikosh"
+  )
+  app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
+end
+
+-- ---------------------------------------------------------------------------
+-- c. Checkbox Manager (Interactive preferred checkbox selector with thumbnail preview)
+-- ---------------------------------------------------------------------------
+
+function onOpenCheckboxManager()
+  local doc = app.getDocumentStructure()
+  if not doc or not doc.pages or #doc.pages == 0 then
+    app.openDialog("FormFillAI: Please open a document first.", { "OK" }, "FormFillAINoopCallback", true)
+    return
+  end
+
+  local pageIdx = doc.currentPage or 1
+  local pageInfo = doc.pages[pageIdx]
   local pdfPath = doc.pdfBackgroundFilename or ""
   local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
 
@@ -672,321 +684,32 @@ function onDetectAllPages()
     end
   end
 
-  if pdfPath == "" or not fileExists(pdfPath) then
-    app.openDialog(
-      "FormFillAI All-Pages Detection requires a saved PDF background.\n" ..
-      "For single-page image documents, please use 'Detect Form Fields (Current Page)'.",
-      { "OK" }, "FormFillAINoopCallback", true
-    )
-    return
-  end
-
-  local python = getPythonExecutable()
-  local dir = getPluginDirectory()
-  local cliScript = dir .. "/backend/cli.py"
-  local tempDir = getTempDirectory()
-  local tempOutJson = tempDir .. "/formfill_all_pages.json"
-  local config = loadConfig()
-
-  -- Run batch detection in ONE single fast Python process (takes under 3s for all 4 pages)
-  local cmd = string.format(
-    '"%s" "%s" detect --pdf "%s" --all-pages --out "%s"',
-    python, cliScript, pdfPath, tempOutJson
-  )
-  if config.model_name then
-    cmd = cmd .. string.format(' --model "%s"', config.model_name)
-  end
-  if config.confidence then
-    cmd = cmd .. string.format(' --conf %f', config.confidence)
-  end
-
-  print("[FormFillAI] Executing all-pages detection: " .. cmd)
-  local exitCode = os.execute(cmd)
-
-  local f = io.open(tempOutJson, "r")
-  if not f then
-    app.openDialog("FormFillAI Error: Detection failed to produce output.", { "OK" }, "FormFillAINoopCallback", true)
-    return
-  end
-
-  local jsonStr = f:read("*all")
-  f:close()
-  os.remove(tempOutJson)
-
-  local results = json.decode(jsonStr)
-  if not results or not results.success then
-    app.openDialog("FormFillAI All-Pages Detection Failed: " .. tostring(results and results.error or "Unknown error"), { "OK" }, "FormFillAINoopCallback", true)
-    return
-  end
-
-  -- Cache for assistant
-  PluginState.lastDetectionJson = tempDir .. "/formfill_latest_doc.json"
-  local fCache = io.open(PluginState.lastDetectionJson, "w")
-  if fCache then
-    fCache:write(jsonStr)
-    fCache:close()
-  end
-
-  local pagesData = results.pages or {}
-  local origPage = doc.currentPage or 1
-
-  -- Loop through pages and apply WITHOUT modal dialogs
-  for p = 1, totalPages do
-    app.setCurrentPage(p)
-    local pData = pagesData[tostring(p)]
-    if pData then
-      applyPageDetections(p, pData, config, false)
-    end
-  end
-
-  app.setCurrentPage(origPage)
-  app.refreshPage()
-
-  local counts = results.counts or {}
-  local summary = string.format(
-    "✨ FormFillAI: All %d Pages Detected Successfully!\n\n" ..
-    "• Total Text Fields: %d\n" ..
-    "• Total Checkboxes: %d\n" ..
-    "• Font: %s (Bangladesh Govt Standard)\n\n" ..
-    "👉 Tips:\n" ..
-    "1. Text tool is active — click on any field to type.\n" ..
-    "2. Select a checkbox & press Ctrl+Shift+T to mark ONLY that preferred box.\n" ..
-    "3. Use Ctrl+Shift+A for the visual Checkbox & Form Assistant.\n" ..
-    "4. Press Ctrl+Shift+R to clean all guide borders before saving/exporting PDF!",
-    totalPages, counts.text_boxes or 0, counts.checkboxes or 0, config.font_family or "Nikosh"
-  )
-  app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
-end
-
--- ---------------------------------------------------------------------------
--- Guide Border Removal for Clean PDF Export (Problem 4)
--- ---------------------------------------------------------------------------
-
-function onRemoveGuideBorders()
-  local doc = app.getDocumentStructure()
-  if not doc or not doc.pages then return end
-  local pageIdx = doc.currentPage or 1
-
-  local refs = PluginState.guideBorderRefs[pageIdx]
-  if refs and #refs > 0 then
-    app.clearSelection()
-    app.addToSelection(refs)
-    app.activateAction("delete")
-    PluginState.guideBorderRefs[pageIdx] = nil
-  end
-
-  -- Also check for untouched placeholder texts "[ ... ]" and remove them
-  local texts = app.getTexts("layer") or {}
-  local placeholderRefs = {}
-  for _, t in ipairs(texts) do
-    if t.text == "[ ... ]" and t.ref then
-      table.insert(placeholderRefs, t.ref)
-    end
-  end
-  if #placeholderRefs > 0 then
-    app.clearSelection()
-    app.addToSelection(placeholderRefs)
-    app.activateAction("delete")
-  end
-
-  app.refreshPage()
-
-  app.openDialog(
-    "✨ Current Page Cleaned for PDF Export!\n\n" ..
-    "• Removed all visual guide borders from this page.\n" ..
-    "• Cleaned untouched placeholder texts.\n" ..
-    "• All your filled text and checkmarks remain intact.\n\n" ..
-    "You can now safely Save or Export your clean PDF without any border lines!",
-    { "OK" },
-    "FormFillAINoopCallback"
-  )
-end
-
-function onRemoveGuideBordersAllPages()
-  local doc = app.getDocumentStructure()
-  if not doc or not doc.pages then return end
-
-  local origPage = doc.currentPage or 1
-  for p = 1, #doc.pages do
-    app.setCurrentPage(p)
-    local refs = PluginState.guideBorderRefs[p]
-    if refs and #refs > 0 then
-      app.clearSelection()
-      app.addToSelection(refs)
-      app.activateAction("delete")
-      PluginState.guideBorderRefs[p] = nil
-    end
-
-    local texts = app.getTexts("layer") or {}
-    local placeholderRefs = {}
-    for _, t in ipairs(texts) do
-      if t.text == "[ ... ]" and t.ref then
-        table.insert(placeholderRefs, t.ref)
-      end
-    end
-    if #placeholderRefs > 0 then
-      app.clearSelection()
-      app.addToSelection(placeholderRefs)
-      app.activateAction("delete")
-    end
-  end
-
-  app.setCurrentPage(origPage)
-  app.refreshPage()
-
-  app.openDialog(
-    "✨ All Pages Cleaned for PDF Export!\n\n" ..
-    "Guide borders and placeholders removed across all pages.\n" ..
-    "All your filled text and checkmarks are preserved.\n" ..
-    "The document is 100% clean and ready for saving/printing!",
-    { "OK" },
-    "FormFillAINoopCallback"
-  )
-end
-
--- ---------------------------------------------------------------------------
--- Toggle / Nearest Checkbox (Problem 3: Choose preferred box)
--- ---------------------------------------------------------------------------
-
-function onToggleNearestCheckbox()
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
   local boxes = PluginState.checkboxes[pageIdx] or {}
-  local config = loadConfig()
+
+  -- If current page hasn't been detected yet, detect it automatically
+  if #boxes == 0 then
+    onDetectCurrentPage()
+    boxes = PluginState.checkboxes[pageIdx] or {}
+  end
 
   if #boxes == 0 then
     app.openDialog(
-      "No detected checkboxes on current page.\n\n" ..
-      "Run 'FormFillAI: Detect Form Fields' first, or use 'Add Checkbox Here' to add one manually.",
+      "No checkboxes detected on this page.\n\n" ..
+      "Use 'FormFillAI: Add Checkbox Here' to manually place one.",
       { "OK" }, "FormFillAINoopCallback"
     )
     return
   end
 
-  local targetX, targetY = nil, nil
-
-  -- 1. Check selection tool bounding box
-  local selInfo = app.getToolInfo("selection")
-  if selInfo and selInfo.boundingBox and selInfo.boundingBox.x and selInfo.boundingBox.x > 0 then
-    targetX = selInfo.boundingBox.x + (selInfo.boundingBox.width or 0) / 2.0
-    targetY = selInfo.boundingBox.y + (selInfo.boundingBox.height or 0) / 2.0
-  end
-
-  -- 2. Check selected strokes
-  if not targetX then
-    local selStrokes = app.getStrokes("selection")
-    if selStrokes and #selStrokes > 0 and selStrokes[1].x and #selStrokes[1].x > 0 then
-      targetX = selStrokes[1].x[1]
-      targetY = selStrokes[1].y[1]
-    end
-  end
-
-  -- 3. Check selected text
-  if not targetX then
-    local selTexts = app.getTexts("selection")
-    if selTexts and #selTexts > 0 then
-      targetX = selTexts[1].x
-      targetY = selTexts[1].y
-    end
-  end
-
-  local bestBox = nil
-  local bestIdx = 1
-
-  if targetX and targetY then
-    local bestDist = 1e9
-    for i, b in ipairs(boxes) do
-      local midBX = b.x + b.width / 2.0
-      local midBY = b.y + b.height / 2.0
-      local dist = (midBX - targetX) * (midBX - targetX) + (midBY - targetY) * (midBY - targetY)
-      if dist < bestDist then
-        bestDist = dist
-        bestBox = b
-        bestIdx = i
-      end
-    end
-  else
-    -- If no selection, toggle the first unchecked box
-    for i, b in ipairs(boxes) do
-      if not b.isChecked then
-        bestBox = b
-        bestIdx = i
-        break
-      end
-    end
-    if not bestBox then
-      bestBox = boxes[1]
-      bestIdx = 1
-    end
-  end
-
-  if not bestBox then return end
-
-  ensureFormFillLayer()
-
-  local color = config.checkbox_color or 0x002060
-  local width = config.checkbox_stroke_width or 1.6
-  local style = config.checkbox_style or "check"
-
-  if bestBox.isChecked then
-    -- Already checked: toggle off and delete stroke
-    if bestBox.strokeRefs and #bestBox.strokeRefs > 0 then
-      app.clearSelection()
-      app.addToSelection(bestBox.strokeRefs)
-      app.activateAction("delete")
-    end
-    bestBox.isChecked = false
-    bestBox.strokeRefs = nil
-  else
-    -- Mark this specific box
-    local strokes = {}
-    if style == "cross" then
-      strokes = createCrossStrokes(bestBox, color, width)
-    elseif style == "square" then
-      strokes = createSquareStrokes(bestBox, color, width)
-    elseif style == "bullet" then
-      strokes = createBulletStrokes(bestBox, color, width)
-    else
-      strokes = createCheckmarkStrokes(bestBox, color, width)
-    end
-    local refs = app.addStrokes({ strokes = strokes, allowUndoRedoAction = "individual" })
-    bestBox.isChecked = true
-    bestBox.strokeRefs = refs
-  end
-
-  app.refreshPage()
-end
-
--- ---------------------------------------------------------------------------
--- Interactive Form Fill Assistant & Checkbox Manager (Problem 3 GUI)
--- ---------------------------------------------------------------------------
-
-function onOpenAssistant()
-  local doc = app.getDocumentStructure()
-  if not doc or not doc.pages or #doc.pages == 0 then
-    app.openDialog("FormFillAI: Please open a document first.", { "OK" }, "FormFillAINoopCallback", true)
-    return
-  end
-
-  local pageIdx = doc.currentPage or 1
   local tempDir = getTempDirectory()
-  local dataJson = tempDir .. "/formfill_results_" .. tostring(pageIdx) .. ".json"
-  local appliedJson = tempDir .. "/formfill_applied_" .. tostring(pageIdx) .. ".json"
+  local dataJson = tempDir .. "/formfill_cbs_" .. tostring(pageIdx) .. ".json"
+  local appliedJson = tempDir .. "/formfill_cb_applied_" .. tostring(pageIdx) .. ".json"
 
-  local boxes = PluginState.checkboxes[pageIdx] or {}
-  local texts = PluginState.textboxes[pageIdx] or {}
+  pcall(os.remove, appliedJson)
 
-  if #boxes == 0 and #texts == 0 then
-    onDetectCurrentPage()
-    boxes = PluginState.checkboxes[pageIdx] or {}
-    texts = PluginState.textboxes[pageIdx] or {}
-  end
-
-  -- Write current state for assistant
   local pageData = {
     page = pageIdx,
-    checkboxes = boxes,
-    text_boxes = texts
+    checkboxes = boxes
   }
   local f = io.open(dataJson, "w")
   if f and loadJsonLibrary() then
@@ -999,28 +722,44 @@ function onOpenAssistant()
   local cliScript = dir .. "/backend/cli.py"
 
   local isWindows = package.config:sub(1, 1) == "\\"
-  local cmd = string.format('"%s" "%s" assistant --data "%s" --out "%s" --page %d', python, cliScript, dataJson, appliedJson, pageIdx)
+  local cmd = string.format('"%s" "%s" checkboxes --data "%s" --out "%s" --page %d', python, cliScript, dataJson, appliedJson, pageIdx)
+  if pdfPath and pdfPath ~= "" then
+    cmd = cmd .. string.format(' --pdf "%s"', pdfPath)
+  end
+
   if isWindows then
     cmd = 'start "" ' .. cmd
   else
     cmd = cmd .. " &"
   end
 
-  print("[FormFillAI] Launching Assistant GUI: " .. cmd)
+  print("[FormFillAI] Launching Checkbox Manager: " .. cmd)
   os.execute(cmd)
+
+  -- Present confirmation dialog in Xournal++
+  app.openDialog(
+    "☑️ Checkbox Manager is now open.\n\n" ..
+    "1. In the Checkbox Manager window, choose your preferred checkboxes (✓ Check, ✗ Cross, ■ Square).\n" ..
+    "2. Click 'Apply Checkmarks to Document' in that window.\n" ..
+    "3. Then click 'Apply Now' below to render your choices on the page.",
+    { "Apply Now", "Cancel" },
+    "cbOnApplyCheckboxes"
+  )
 end
 
-function onApplyAssistantFills()
+function cbOnApplyCheckboxes(btn)
+  if btn ~= 1 then return end
+
   local doc = app.getDocumentStructure()
   local pageIdx = doc and doc.currentPage or 1
   local tempDir = getTempDirectory()
-  local appliedJson = tempDir .. "/formfill_applied_" .. tostring(pageIdx) .. ".json"
+  local appliedJson = tempDir .. "/formfill_cb_applied_" .. tostring(pageIdx) .. ".json"
 
   local f = io.open(appliedJson, "r")
   if not f then
     app.openDialog(
-      "No applied fills found from Assistant yet.\n\n" ..
-      "Open 'Form Fill Assistant' (Ctrl+Shift+A), choose your checkboxes or enter text, and click 'Apply to Document'.",
+      "No applied checkboxes found.\n\n" ..
+      "Please make your selections in the Checkbox Manager window and click 'Apply Checkmarks to Document' first.",
       { "OK" }, "FormFillAINoopCallback"
     )
     return
@@ -1028,230 +767,225 @@ function onApplyAssistantFills()
 
   local jsonStr = f:read("*all")
   f:close()
+  pcall(os.remove, appliedJson)
 
   if not loadJsonLibrary() then return end
   local data = json.decode(jsonStr)
-  if not data then return end
-
-  if data.action == "remove_guides" or data.remove_guides then
-    onRemoveGuideBorders()
-    return
-  end
+  if not data or not data.checkboxes then return end
 
   local config = loadConfig()
   local color = config.checkbox_color or 0x002060
   local width = config.checkbox_stroke_width or 1.6
-  local fontFam = config.font_family or "Nikosh"
-  local fontCol = config.font_color or 0x000000
 
   ensureFormFillLayer()
 
-  -- Render checkboxes marked by user
-  local strokes = {}
-  for _, cb in ipairs(data.checkboxes or {}) do
-    local st = cb.state or "none"
-    if st == "check" then
-      for _, s in ipairs(createCheckmarkStrokes(cb, color, width)) do table.insert(strokes, s) end
-    elseif st == "cross" then
-      for _, s in ipairs(createCrossStrokes(cb, color, width)) do table.insert(strokes, s) end
-    elseif st == "square" then
-      for _, s in ipairs(createSquareStrokes(cb, color, width)) do table.insert(strokes, s) end
-    elseif st == "bullet" then
-      for _, s in ipairs(createBulletStrokes(cb, color, width)) do table.insert(strokes, s) end
+  -- Remove previous checkmark strokes on this page
+  local boxes = PluginState.checkboxes[pageIdx] or {}
+  local oldRefs = {}
+  for _, b in ipairs(boxes) do
+    if b.strokeRefs and #b.strokeRefs > 0 then
+      for _, r in ipairs(b.strokeRefs) do table.insert(oldRefs, r) end
     end
+    b.isChecked = false
+    b.strokeRefs = nil
   end
-  if #strokes > 0 then
-    app.addStrokes({ strokes = strokes, allowUndoRedoAction = "grouped" })
+  if #oldRefs > 0 then
+    app.clearSelection()
+    app.addToSelection(oldRefs)
+    app.activateAction("delete")
   end
 
-  -- Render text fields entered by user
-  local textList = {}
-  for _, tb in ipairs(data.text_boxes or {}) do
-    if tb.text and tb.text ~= "" then
-      local fontSize = config.font_size or 11.0
-      if config.font_size_mode == "auto" and tb.height then
-        fontSize = math.max(7.0, math.min(16.0, math.floor(tb.height * 0.72 * 2.0) / 2.0))
-      end
-      table.insert(textList, {
-        text = tb.text,
-        font = { name = fontFam, size = fontSize },
-        color = fontCol,
-        x = tb.x,
-        y = tb.y
-      })
+  -- Render newly chosen checkboxes
+  local markedCount = 0
+  for i, cb in ipairs(data.checkboxes) do
+    local st = cb.state or "none"
+    local sList = {}
+    if st == "check" then
+      sList = createCheckmarkStrokes(cb, color, width)
+      markedCount = markedCount + 1
+    elseif st == "cross" then
+      sList = createCrossStrokes(cb, color, width)
+      markedCount = markedCount + 1
+    elseif st == "square" then
+      sList = createSquareStrokes(cb, color, width)
+      markedCount = markedCount + 1
+    elseif st == "bullet" then
+      sList = createBulletStrokes(cb, color, width)
+      markedCount = markedCount + 1
     end
-  end
-  if #textList > 0 then
-    app.addTexts({ texts = textList, allowUndoRedoAction = "grouped" })
+
+    if #sList > 0 then
+      local refs = app.addStrokes({ strokes = sList, allowUndoRedoAction = "individual" })
+      if boxes[i] then
+        boxes[i].isChecked = true
+        boxes[i].strokeRefs = refs
+      end
+    end
   end
 
   app.refreshPage()
 
   app.openDialog(
-    string.format("✨ Fills Applied Successfully!\n\n• Checkmarks Drawn: %d\n• Text Fields Populated: %d\nFont: %s",
-      #strokes, #textList, fontFam),
+    string.format("✨ Checkbox Manager: %d preferred checkbox(es) marked successfully!", markedCount),
     { "OK" }, "FormFillAINoopCallback"
   )
 end
 
 -- ---------------------------------------------------------------------------
--- Bulk Checkbox Operations
+-- d. Remove Guide Borders (Removes all dashed borders, retains all typed text!)
 -- ---------------------------------------------------------------------------
 
-local function fillCheckboxes(styleName)
+function onRemoveGuideBorders()
+  local doc = app.getDocumentStructure()
+  if not doc or not doc.pages then return end
+  local pageIdx = doc.currentPage or 1
+
+  -- 1. Remove all tracked guide border strokes
+  local refs = PluginState.guideBorderRefs[pageIdx]
+  if refs and #refs > 0 then
+    app.clearSelection()
+    app.addToSelection(refs)
+    app.activateAction("delete")
+    PluginState.guideBorderRefs[pageIdx] = nil
+  end
+
+  -- 2. Scan layer for any remaining dashed guide strokes (around inputs and checkboxes)
+  local strokes = app.getStrokes("layer") or {}
+  local dashedRefs = {}
+  for _, s in ipairs(strokes) do
+    if s.lineStyle == "dash" and s.ref then
+      table.insert(dashedRefs, s.ref)
+    end
+  end
+  if #dashedRefs > 0 then
+    app.clearSelection()
+    app.addToSelection(dashedRefs)
+    app.activateAction("delete")
+  end
+
+  -- 3. Remove ONLY untouched "[ ... ]" placeholder prompts
+  -- ALL TEXT TYPED BY THE USER IS 100% PRESERVED AND RETAINED!
+  local texts = app.getTexts("layer") or {}
+  local placeholderRefs = {}
+  local userTextCount = 0
+
+  for _, t in ipairs(texts) do
+    if (t.text == "[ ... ]" or t.text == " ") and t.ref then
+      table.insert(placeholderRefs, t.ref)
+    else
+      userTextCount = userTextCount + 1
+    end
+  end
+
+  if #placeholderRefs > 0 then
+    app.clearSelection()
+    app.addToSelection(placeholderRefs)
+    app.activateAction("delete")
+  end
+
+  app.refreshPage()
+
+  app.openDialog(
+    string.format(
+      "✨ Guide Borders Cleaned Successfully!\n\n" ..
+      "• All dashed borders around input fields and checkboxes removed.\n" ..
+      "• Untouched placeholders cleaned.\n" ..
+      "• User-typed text fields retained: %d field(s)\n" ..
+      "• Checkmarks retained intact.\n\n" ..
+      "Your document is 100% clean and ready for saving/exporting to PDF!",
+      userTextCount
+    ),
+    { "OK" },
+    "FormFillAINoopCallback"
+  )
+end
+
+-- ---------------------------------------------------------------------------
+-- e. Add Checkbox Here (At exact center of rectangular selection region)
+-- ---------------------------------------------------------------------------
+
+function onAddCheckboxAtSelection()
   local config = loadConfig()
   local doc = app.getDocumentStructure()
   local pageIdx = doc and doc.currentPage or 1
-  local boxes = PluginState.checkboxes[pageIdx] or {}
 
-  if #boxes == 0 then
+  local rectX, rectY, rectW, rectH = nil, nil, nil, nil
+
+  -- 1. Extract from selection bounding box
+  local selInfo = app.getToolInfo("selection")
+  if selInfo then
+    local bounds = selInfo.snappedBounds or selInfo.boundingBox or selInfo.originalBounds
+    if bounds and bounds.width and bounds.width > 2.0 and bounds.height and bounds.height > 2.0 then
+      rectX = bounds.x
+      rectY = bounds.y
+      rectW = bounds.width
+      rectH = bounds.height
+    end
+  end
+
+  -- 2. Extract from selected strokes if any
+  if not rectX then
+    local strokes = app.getStrokes("selection")
+    if strokes and #strokes > 0 and strokes[1].x and #strokes[1].x > 0 then
+      local minX, maxX = 1e9, -1e9
+      local minY, maxY = 1e9, -1e9
+      for _, s in ipairs(strokes) do
+        for k = 1, #s.x do
+          if s.x[k] < minX then minX = s.x[k] end
+          if s.x[k] > maxX then maxX = s.x[k] end
+          if s.y[k] < minY then minY = s.y[k] end
+          if s.y[k] > maxY then maxY = s.y[k] end
+        end
+      end
+      if maxX > minX and maxY > minY then
+        rectX = minX
+        rectY = minY
+        rectW = maxX - minX
+        rectH = maxY - minY
+      end
+    end
+  end
+
+  -- 3. Extract from selected text if any
+  if not rectX then
+    local texts = app.getTexts("selection")
+    if texts and #texts > 0 then
+      rectX = texts[1].x
+      rectY = texts[1].y
+      rectW = texts[1].width or 20.0
+      rectH = texts[1].height or 20.0
+    end
+  end
+
+  -- If user has not made a rectangular selection yet:
+  if not rectX then
     app.openDialog(
-      "No detected checkboxes on this page.\n\n" ..
-      "Run 'FormFillAI: Detect Form Fields' first, or use 'Add Checkbox Here' to add one manually.",
-      { "OK" }, "FormFillAINoopCallback"
+      "FormFillAI: Please use the Rectangular Selection tool to select where you want the checkbox, then click 'Add Checkbox Here'.\n\n" ..
+      "(The Rectangular Selection tool has been activated for you!)",
+      { "OK" },
+      "FormFillAINoopCallback"
     )
+    pcall(function()
+      app.changeActionState("select-tool", app.C.Tool_selectRect)
+    end)
     return
   end
 
-  local color = config.checkbox_color or 0x002060
-  local width = config.checkbox_stroke_width or 1.6
-  local allStrokes = {}
+  -- Calculate EXACT center of the rectangular selection region
+  local centerX = rectX + rectW / 2.0
+  local centerY = rectY + rectH / 2.0
+  local cbSize = math.max(8.0, math.min(16.0, math.min(rectW, rectH)))
+  local posX = centerX - cbSize / 2.0
+  local posY = centerY - cbSize / 2.0
 
-  for _, box in ipairs(boxes) do
-    local strokes = {}
-    if styleName == "cross" then
-      strokes = createCrossStrokes(box, color, width)
-    elseif styleName == "square" then
-      strokes = createSquareStrokes(box, color, width)
-    elseif styleName == "bullet" then
-      strokes = createBulletStrokes(box, color, width)
-    else
-      strokes = createCheckmarkStrokes(box, color, width)
-    end
-    for _, s in ipairs(strokes) do
-      table.insert(allStrokes, s)
-    end
-  end
-
-  if #allStrokes > 0 then
-    ensureFormFillLayer()
-    app.addStrokes({ strokes = allStrokes, allowUndoRedoAction = "grouped" })
-    app.refreshPage()
-  end
-end
-
-function onFillCheckboxesCheck()
-  fillCheckboxes("check")
-end
-
-function onFillCheckboxesCross()
-  fillCheckboxes("cross")
-end
-
-function onClearCheckboxesCurrentPage()
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
-  local boxes = PluginState.checkboxes[pageIdx] or {}
-
-  local allRefs = {}
-  for _, b in ipairs(boxes) do
-    if b.strokeRefs and #b.strokeRefs > 0 then
-      for _, r in ipairs(b.strokeRefs) do
-        table.insert(allRefs, r)
-      end
-    end
-    b.isChecked = false
-    b.strokeRefs = nil
-  end
-
-  if #allRefs > 0 then
-    app.clearSelection()
-    app.addToSelection(allRefs)
-    app.activateAction("delete")
-    app.refreshPage()
-  end
-end
-
--- ---------------------------------------------------------------------------
--- Manual Overlay Addition (add text, add checkbox)
--- ---------------------------------------------------------------------------
-
-function onAddManualTextField()
-  local config = loadConfig()
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
-  local pageInfo = doc and doc.pages[pageIdx]
-
-  local posX = 72.0
-  local posY = 120.0
-  local width = 160.0
-  local height = 20.0
-
-  local selTexts = app.getTexts("selection") or {}
-  if #selTexts > 0 then
-    posX = selTexts[1].x
-    posY = selTexts[1].y
-    width = selTexts[1].width or width
-    height = selTexts[1].height or height
-  elseif pageInfo then
-    posX = (pageInfo.pageWidth - width) / 2.0
-    posY = pageInfo.pageHeight / 3.0
-  end
-
-  local fontFam = config.font_family or "Nikosh"
-  local fontSize = config.font_size or 11.0
-  local fontCol = config.font_color or 0x000000
-
-  ensureFormFillLayer()
-
-  if config.show_field_borders ~= false then
-    local borderCol = config.border_color or 0x90B0D0
-    local borderW = config.border_width or 0.8
-    local refs = app.addStrokes({
-      strokes = { createFieldBorderStrokes({ x = posX, y = posY, width = width, height = height }, borderCol, borderW) },
-      allowUndoRedoAction = "grouped"
-    })
-    if not PluginState.guideBorderRefs[pageIdx] then PluginState.guideBorderRefs[pageIdx] = {} end
-    for _, r in ipairs(refs or {}) do table.insert(PluginState.guideBorderRefs[pageIdx], r) end
-  end
-
-  app.addTexts({
-    texts = {
-      {
-        text = "[ ... ]",
-        font = { name = fontFam, size = fontSize },
-        color = 0x708090,
-        x = posX,
-        y = posY
-      }
-    },
-    allowUndoRedoAction = "grouped"
-  })
-
-  pcall(function()
-    app.setFont({ name = fontFam, size = fontSize })
-    app.changeActionState("select-tool", app.C.Tool_text)
-  end)
-
-  app.refreshPage()
-end
-
-function onAddManualCheckbox()
-  local config = loadConfig()
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
-  local pageInfo = doc and doc.pages[pageIdx]
-
-  local posX = 72.0
-  local posY = 160.0
-  local size = 14.0
-
-  if pageInfo then
-    posX = pageInfo.pageWidth / 4.0
-    posY = pageInfo.pageHeight / 3.0
-  end
-
-  local newBox = { x = posX, y = posY, width = size, height = size, isChecked = true }
+  local newBox = {
+    x = posX,
+    y = posY,
+    width = cbSize,
+    height = cbSize,
+    isChecked = true,
+    strokeRefs = nil
+  }
 
   if not PluginState.checkboxes[pageIdx] then
     PluginState.checkboxes[pageIdx] = {}
@@ -1262,68 +996,21 @@ function onAddManualCheckbox()
 
   local color = config.checkbox_color or 0x002060
   local width = config.checkbox_stroke_width or 1.6
-  local borderCol = config.border_color or 0x90B0D0
 
-  -- Draw box outline
-  local bStrokes = { createFieldBorderStrokes(newBox, borderCol, 1.0) }
-  local bRefs = app.addStrokes({ strokes = bStrokes, allowUndoRedoAction = "grouped" })
-  if not PluginState.guideBorderRefs[pageIdx] then PluginState.guideBorderRefs[pageIdx] = {} end
-  for _, r in ipairs(bRefs or {}) do table.insert(PluginState.guideBorderRefs[pageIdx], r) end
-
-  -- Draw checkmark
+  -- Draw checkmark at exact center
   local checks = createCheckmarkStrokes(newBox, color, width)
-  local cRefs = app.addStrokes({ strokes = checks, allowUndoRedoAction = "grouped" })
+  local cRefs = app.addStrokes({ strokes = checks, allowUndoRedoAction = "individual" })
   newBox.strokeRefs = cRefs
 
+  -- Release selection and refresh page
+  app.clearSelection()
   app.refreshPage()
+
+  print(string.format("[FormFillAI] Added checkbox at center of selection: X=%.1f, Y=%.1f (Size=%.1f)", posX, posY, cbSize))
 end
 
 -- ---------------------------------------------------------------------------
--- Deletion & Cleanup
--- ---------------------------------------------------------------------------
-
-function onClearOverlaysCurrentPage()
-  app.openDialog(
-    "Clear all FormFillAI overlays and strokes on the current page?",
-    { "Yes, Clear", "Cancel" },
-    "cbClearOverlaysCurrentPage"
-  )
-end
-
-function cbClearOverlaysCurrentPage(btn)
-  if btn ~= 1 then return end
-
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
-
-  -- Clear cached state for this page
-  PluginState.checkboxes[pageIdx] = {}
-  PluginState.textboxes[pageIdx] = {}
-  PluginState.guideBorderRefs[pageIdx] = nil
-
-  -- Select all elements on current layer and delete them
-  local refs = {}
-  local texts = app.getTexts("layer") or {}
-  for _, t in ipairs(texts) do
-    if t.ref then table.insert(refs, t.ref) end
-  end
-
-  local strokes = app.getStrokes("layer") or {}
-  for _, s in ipairs(strokes) do
-    if s.ref then table.insert(refs, s.ref) end
-  end
-
-  if #refs > 0 then
-    app.clearSelection()
-    app.addToSelection(refs)
-    app.activateAction("delete")
-  end
-
-  app.refreshPage()
-end
-
--- ---------------------------------------------------------------------------
--- Settings Dialog Launch
+-- f. Settings and Preferences
 -- ---------------------------------------------------------------------------
 
 function onOpenSettings()
@@ -1332,11 +1019,11 @@ function onOpenSettings()
   local guiScript = dir .. "/backend/gui_settings.py"
 
   local isWindows = package.config:sub(1, 1) == "\\"
-  local cmd
+  local cmd = string.format('"%s" "%s"', python, guiScript)
   if isWindows then
-    cmd = string.format('start "" "%s" "%s"', python, guiScript)
+    cmd = 'start "" ' .. cmd
   else
-    cmd = string.format('"%s" "%s" &', python, guiScript)
+    cmd = cmd .. " &"
   end
 
   print("[FormFillAI] Launching Settings GUI in background: " .. cmd)

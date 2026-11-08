@@ -91,37 +91,30 @@ install.bat
 
 | Shortcut | Action | Description |
 |---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Form Fields** | Auto-detects text boxes and checkboxes on the current page |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> | **Form Fill Assistant** | Opens the visual Assistant to mark preferred individual checkboxes & fill fields |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | **Toggle Selected Checkbox** | Toggles the checkbox at your cursor/selection (Checked ✓ / Crossed ✗ / Clear) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Cleans all visual guide borders and placeholders for clean PDF saving/export |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | **Fill All Checkboxes** | Marks all detected checkboxes with the chosen shape (`✓`) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings & Tools** | Opens the visual GUI settings dialog & font browser |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Auto-detects text fields and checkboxes on the current page |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | **Checkbox Manager** | Opens visual Manager with label crops to choose and mark preferred checkboxes |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | **Remove Guide Borders** | Removes all dashed guide borders around fields, retaining all typed text |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | **Add Checkbox Here** | Places a checkbox at the exact center of your rectangular selection region |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Opens settings and 446-system-font browser (Nikosh default) |
 
 ---
 
 ## 🖥️ Menu Actions (`Plugin > FormFillAI`)
 
-- **Detect Form Fields (Current Page)**: Scans the active page and creates overlay text boxes and checkboxes.
-- **Detect Form Fields (All Pages)**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
-- **Form Fill Assistant & Checkbox Manager...**: Opens an interactive assistant window to select and mark individual preferred checkboxes (e.g. choose Male OR Female, Married OR Unmarried).
-- **Apply Fills from Assistant**: Renders the checkboxes and text values configured in the Assistant.
-- **Toggle / Mark Nearest Checkbox**: Marks or unmarks only the specific checkbox at your cursor or selection.
-- **Remove Guide Borders (Clean for PDF Export - Current Page)**: Instantly deletes visual guide borders and placeholders, ensuring 100% clean PDF saving.
-- **Remove Guide Borders (Clean for PDF Export - All Pages)**: Cleans guide borders across all pages of the document.
-- **Fill All Checkboxes (Checked ✓)**: Bulk-fills all checkboxes with checkmarks.
-- **Fill All Checkboxes (Crossed ✗)**: Bulk-fills all checkboxes with diagonal crosses.
-- **Clear All Checkboxes (Current Page)**: Unchecks and clears all checkmarks on the active page.
-- **Add Text Field Overlay**: Places a new text box at your selection or view center.
-- **Add Checkbox Here**: Places a new checkbox at your selection or view center.
-- **Clear All Form Overlays (Current Page)**: Wipes all form overlays from the current page layer.
-- **Settings & Preferences...**: Launches the settings dialog and Bangla font selector.
+FormFillAI provides a clean, focused 6-tool menu in Xournal++:
+
+1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes (Pure Black, Nikosh font) and checkboxes.
+2. **FormFillAI: Detect Full PDF**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
+3. **FormFillAI: Checkbox Manager** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd>): Opens the visual Checkbox Manager with thumbnail crops of each checkbox and its label from the PDF. Allows choosing individual preferred checkboxes (e.g. Male vs Female, Married vs Unmarried) with `✓ Check`, `✗ Cross`, or `■ Square`.
+4. **FormFillAI: Remove Guide Borders** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd>): Deletes all dashed guide lines around input fields and checkboxes, leaving the document 100% clean for PDF saving while retaining all text typed by the user.
+5. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): Places a checkbox at the exact center of your active rectangular selection region. If no region is selected, automatically switches to the Rectangular Selection tool.
+6. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts, AI model (FFDNet-S / FFDNet-L), and colors.
 
 ---
 
 ## 🛠️ Settings Configuration
 
-Open the settings dialog via `Plugin > FormFillAI > Settings & Preferences...` or <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>S</kbd>:
+Open the settings dialog via `Plugin > FormFillAI > Settings and Preferences` or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>:
 
 1. **AI Model Selection**: Switch seamlessly between `FFDNet-S` and `FFDNet-L`.
 2. **Confidence Sensitivity**: Adjust detection threshold slider (default: `28%`).
