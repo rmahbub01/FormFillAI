@@ -85,7 +85,8 @@ class CheckboxManagerDialog:
             page_idx = max(0, min(self.page_number - 1, len(pdf) - 1))
             page = pdf[page_idx]
             w_pts, h_pts = page.get_size()
-            render_scale = 150.0 / 72.0
+            # Fast 96 DPI rendering for instant thumbnail generation
+            render_scale = 96.0 / 72.0
             bitmap = page.render(scale=render_scale)
             pil_img = bitmap.to_pil().convert("RGB")
 
@@ -98,21 +99,20 @@ class CheckboxManagerDialog:
                 cw = float(cb.get("width", 12))
                 ch = float(cb.get("height", 12))
 
-                # Crop around checkbox + label to the right (~130 pts)
+                # Crop around checkbox + label to the right (~110 pts)
                 px1 = int(max(0, (cx - 4) * scale_x))
                 py1 = int(max(0, (cy - 4) * scale_y))
                 px2 = int(min(pil_img.width, (cx + max(cw + 10, 110)) * scale_x))
                 py2 = int(min(pil_img.height, (cy + ch + 5) * scale_y))
 
                 crop = pil_img.crop((px1, py1, px2, py2))
-                # Resize smoothly for UI
-                target_h = 28
+                target_h = 26
                 aspect = crop.width / max(1, crop.height)
-                target_w = max(40, min(220, int(target_h * aspect)))
-                resized = crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                target_w = max(40, min(200, int(target_h * aspect)))
+                resized = crop.resize((target_w, target_h), Image.Resampling.BILINEAR)
                 self.thumbnails[i] = ImageTk.PhotoImage(resized)
         except Exception as e:
-            print(f"[FormFillAI] Thumbnail rendering skipped: {e}")
+            print(f"[FormFillAI] Fast thumbnail rendering fallback: {e}")
 
     def _build_ui(self) -> None:
         # Header banner
@@ -384,12 +384,17 @@ class CheckboxManagerDialog:
             self.out_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.out_path, "w", encoding="utf-8") as f:
                 json.dump(applied, f, indent=2)
-            n_marked = sum(1 for s in self.cb_states.values() if s != "none")
-            messagebox.showinfo(
-                "Checkmarks Saved",
-                f"Selected {n_marked} checkbox(es) for Page {self.page_number}!\n\n"
-                "Click 'Apply Checkmarks' in Xournal++ to render onto the page."
-            )
+
+            # Auto-trigger Xournal++ to apply checkmarks immediately
+            try:
+                import subprocess
+                subprocess.run(
+                    ["xdotool", "search", "--class", "xournalpp", "windowactivate", "--sync", "key", "--clearmodifiers", "ctrl+shift+c"],
+                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
+            except Exception:
+                pass
+
             self.root.destroy()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save checkboxes: {e}")

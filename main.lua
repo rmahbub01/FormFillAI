@@ -3,9 +3,9 @@
 -- Features:
 --   a. Detect Current Page
 --   b. Detect Full PDF (Fast batch detection across all pages with zero freezing)
---   c. Checkbox Manager (Interactive window with thumbnail crops to choose preferred checkboxes)
---   d. Remove Guide Borders (Removes all dashed guide borders around input fields & checkboxes, retaining typed text)
---   e. Add Checkbox Here (Places checkbox at exact center of rectangular selection region)
+--   c. Checkbox Manager (Visual window with image crops to choose preferred checkboxes, zero popups, zero lag)
+--   d. Remove Guide Borders (Removes all dashed guide borders and artifacts, leaving a clean naturally typed form)
+--   e. Add Checkbox Here (Choose shape: Check ✓, Cross ✗, Square ■, Bullet ●, Box ☐; then resize and place with handles)
 --   f. Settings and Preferences (Font selector with Nikosh Bangla font support)
 --
 
@@ -180,17 +180,17 @@ function initUi()
     accelerator = "<Control><Shift>c"
   })
 
-  -- d. Remove guide borders (Dashed borders removed, user-typed text retained)
+  -- d. Remove guide borders (Removes all dashed guide borders and artifacts, retaining typed text)
   app.registerUi({
     menu = "FormFillAI: Remove Guide Borders",
     callback = "onRemoveGuideBorders",
     accelerator = "<Control><Shift>r"
   })
 
-  -- e. Add checkbox here (at center of rectangular selection)
+  -- e. Add checkbox here (Choose shape, then resize and place with handles)
   app.registerUi({
     menu = "FormFillAI: Add Checkbox Here",
-    callback = "onAddCheckboxAtSelection",
+    callback = "onAddCheckboxPrompt",
     accelerator = "<Control><Shift>x"
   })
 
@@ -205,7 +205,7 @@ function initUi()
 end
 
 -- ---------------------------------------------------------------------------
--- Stroke & Checkbox Generator Helpers
+-- Stroke & Shape Generator Helpers
 -- ---------------------------------------------------------------------------
 
 local function createCheckmarkStrokes(box, color, width)
@@ -296,6 +296,24 @@ local function createBulletStrokes(box, color, width)
   }
 end
 
+local function createEmptyBoxStrokes(box, color, width)
+  local x, y, w, h = box.x, box.y, box.width, box.height
+  local c = color or 0x002060
+  local sw = width or 1.2
+
+  return {
+    {
+      x = { x + 0.15 * w, x + 0.85 * w, x + 0.85 * w, x + 0.15 * w, x + 0.15 * w },
+      y = { y + 0.15 * h, y + 0.15 * h, y + 0.85 * h, y + 0.85 * h, y + 0.15 * h },
+      tool = "pen",
+      width = sw,
+      color = c,
+      fill = -1,
+      lineStyle = "plain"
+    }
+  }
+end
+
 local function createFieldBorderStrokes(box, color, width)
   local x, y, w, h = box.x, box.y, box.width, box.height
   local c = color or 0x90B0D0
@@ -336,7 +354,7 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
   local borderCol = config.border_color or 0x90B0D0
   local borderW = config.border_width or 0.8
 
-  -- Configure Xournal++ active text tool to Black Nikosh font
+  -- Configure Xournal++ active text tool to Pure Black Nikosh font
   pcall(function()
     app.setFont({ name = fontFam, size = defFontSize })
     app.changeActionState("tool-color", fontCol)
@@ -361,37 +379,15 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
 
   ensureFormFillLayer()
 
-  local textList = {}
   local borderStrokes = {}
 
-  -- 1. Populate Text Boxes (exact coordinates, auto-fitted font size, Black text color)
-  for _, box in ipairs(tbs) do
-    local fontSize = defFontSize
-    if config.font_size_mode == "auto" then
-      if box.height <= 26.0 then
-        fontSize = math.max(7.0, math.min(16.0, math.floor(box.height * 0.72 * 2.0) / 2.0))
-      else
-        fontSize = 11.0
-      end
-    end
-
-    -- Clickable placeholder in Pure Black
-    table.insert(textList, {
-      text = "[ ... ]",
-      font = { name = fontFam, size = fontSize },
-      color = fontCol, -- Pure Black
-      x = box.x,
-      y = box.y
-    })
-
-    if showBorders then
+  -- Draw visual guide borders around fields and checkboxes
+  -- NO text placeholder artifacts are inserted so the form stays 100% natural!
+  if showBorders then
+    for _, box in ipairs(tbs) do
       table.insert(borderStrokes, createFieldBorderStrokes(box, borderCol, borderW))
     end
-  end
-
-  -- 2. Outline Checkboxes with guide borders
-  for _, box in ipairs(cbs) do
-    if showBorders then
+    for _, box in ipairs(cbs) do
       table.insert(borderStrokes, createFieldBorderStrokes(box, borderCol, borderW))
     end
   end
@@ -400,11 +396,6 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
   if #borderStrokes > 0 then
     local refs = app.addStrokes({ strokes = borderStrokes, allowUndoRedoAction = "grouped" })
     PluginState.guideBorderRefs[pageIdx] = refs
-  end
-
-  -- Add text boxes
-  if #textList > 0 then
-    app.addTexts({ texts = textList, allowUndoRedoAction = "grouped" })
   end
 
   app.refreshPage()
@@ -416,9 +407,9 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
       "• Detected Checkboxes: %d\n" ..
       "• Active Font: %s (Pure Black)\n\n" ..
       "👉 How to fill:\n" ..
-      "1. Click any '[ ... ]' field to type directly in Bengali.\n" ..
+      "1. Click inside any dashed guide box to type directly on the form in Bengali.\n" ..
       "2. Select Menu > 'FormFillAI: Checkbox Manager' (Ctrl+Shift+C) to choose and mark your preferred checkboxes!\n" ..
-      "3. When finished, select 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) before saving your clean PDF.",
+      "3. When finished, select 'FormFillAI: Remove Guide Borders' (Ctrl+Shift+R) for a clean, naturally typed form.",
       #tbs, #cbs, fontFam
     )
     app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
@@ -640,138 +631,28 @@ function onDetectFullPdf()
     "• Total Checkboxes: %d\n" ..
     "• Font: %s (Pure Black)\n\n" ..
     "👉 Next Steps:\n" ..
-    "1. Click any '[ ... ]' field to type directly in Bengali.\n" ..
+    "1. Click inside any dashed guide box to type directly on the form.\n" ..
     "2. Use 'Checkbox Manager' (Ctrl+Shift+C) to choose and mark preferred checkboxes!\n" ..
-    "3. Use 'Remove Guide Borders' (Ctrl+Shift+R) before saving clean PDF.",
+    "3. Use 'Remove Guide Borders' (Ctrl+Shift+R) when done for a clean, naturally typed form.",
     totalPages, counts.text_boxes or 0, counts.checkboxes or 0, config.font_family or "Nikosh"
   )
   app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
 end
 
 -- ---------------------------------------------------------------------------
--- c. Checkbox Manager (Interactive preferred checkbox selector with thumbnail preview)
+-- c. Checkbox Manager (Zero-Popup, High-Speed, Visual Preferred Box Selection)
 -- ---------------------------------------------------------------------------
 
-function onOpenCheckboxManager()
-  local doc = app.getDocumentStructure()
-  if not doc or not doc.pages or #doc.pages == 0 then
-    app.openDialog("FormFillAI: Please open a document first.", { "OK" }, "FormFillAINoopCallback", true)
-    return
-  end
-
-  local pageIdx = doc.currentPage or 1
-  local pageInfo = doc.pages[pageIdx]
-  local pdfPath = doc.pdfBackgroundFilename or ""
-  local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
-
-  -- Resolve PDF path
-  if pdfPath ~= "" and not fileExists(pdfPath) then
-    if doc.xoppFilename and doc.xoppFilename ~= "" then
-      local xoppDir = doc.xoppFilename:match("^(.*)[/\\]")
-      if xoppDir and fileExists(xoppDir .. "/" .. pdfPath) then
-        pdfPath = xoppDir .. "/" .. pdfPath
-      end
-    end
-    if not fileExists(pdfPath) then
-      local fname = pdfPath:match("([^/\\]+)$") or pdfPath
-      local searchDirs = { home .. "/Downloads/", home .. "/Documents/", home .. "/Desktop/", "/tmp/" }
-      for _, sd in ipairs(searchDirs) do
-        if fileExists(sd .. fname) then
-          pdfPath = sd .. fname
-          break
-        end
-      end
-    end
-  end
-
-  local boxes = PluginState.checkboxes[pageIdx] or {}
-
-  -- If current page hasn't been detected yet, detect it automatically
-  if #boxes == 0 then
-    onDetectCurrentPage()
-    boxes = PluginState.checkboxes[pageIdx] or {}
-  end
-
-  if #boxes == 0 then
-    app.openDialog(
-      "No checkboxes detected on this page.\n\n" ..
-      "Use 'FormFillAI: Add Checkbox Here' to manually place one.",
-      { "OK" }, "FormFillAINoopCallback"
-    )
-    return
-  end
-
-  local tempDir = getTempDirectory()
-  local dataJson = tempDir .. "/formfill_cbs_" .. tostring(pageIdx) .. ".json"
-  local appliedJson = tempDir .. "/formfill_cb_applied_" .. tostring(pageIdx) .. ".json"
-
-  pcall(os.remove, appliedJson)
-
-  local pageData = {
-    page = pageIdx,
-    checkboxes = boxes
-  }
-  local f = io.open(dataJson, "w")
-  if f and loadJsonLibrary() then
-    f:write(json.encode(pageData))
-    f:close()
-  end
-
-  local python = getPythonExecutable()
-  local dir = getPluginDirectory()
-  local cliScript = dir .. "/backend/cli.py"
-
-  local isWindows = package.config:sub(1, 1) == "\\"
-  local cmd = string.format('"%s" "%s" checkboxes --data "%s" --out "%s" --page %d', python, cliScript, dataJson, appliedJson, pageIdx)
-  if pdfPath and pdfPath ~= "" then
-    cmd = cmd .. string.format(' --pdf "%s"', pdfPath)
-  end
-
-  if isWindows then
-    cmd = 'start "" ' .. cmd
-  else
-    cmd = cmd .. " &"
-  end
-
-  print("[FormFillAI] Launching Checkbox Manager: " .. cmd)
-  os.execute(cmd)
-
-  -- Present confirmation dialog in Xournal++
-  app.openDialog(
-    "☑️ Checkbox Manager is now open.\n\n" ..
-    "1. In the Checkbox Manager window, choose your preferred checkboxes (✓ Check, ✗ Cross, ■ Square).\n" ..
-    "2. Click 'Apply Checkmarks to Document' in that window.\n" ..
-    "3. Then click 'Apply Now' below to render your choices on the page.",
-    { "Apply Now", "Cancel" },
-    "cbOnApplyCheckboxes"
-  )
-end
-
-function cbOnApplyCheckboxes(btn)
-  if btn ~= 1 then return end
-
-  local doc = app.getDocumentStructure()
-  local pageIdx = doc and doc.currentPage or 1
-  local tempDir = getTempDirectory()
-  local appliedJson = tempDir .. "/formfill_cb_applied_" .. tostring(pageIdx) .. ".json"
-
+local function applyCheckboxJson(pageIdx, appliedJson)
   local f = io.open(appliedJson, "r")
-  if not f then
-    app.openDialog(
-      "No applied checkboxes found.\n\n" ..
-      "Please make your selections in the Checkbox Manager window and click 'Apply Checkmarks to Document' first.",
-      { "OK" }, "FormFillAINoopCallback"
-    )
-    return
-  end
-
+  if not f then return false end
   local jsonStr = f:read("*all")
   f:close()
   pcall(os.remove, appliedJson)
 
-  if not loadJsonLibrary() then return end
+  if not loadJsonLibrary() then return false end
   local data = json.decode(jsonStr)
-  if not data or not data.checkboxes then return end
+  if not data or not data.checkboxes then return false end
 
   local config = loadConfig()
   local color = config.checkbox_color or 0x002060
@@ -826,13 +707,105 @@ function cbOnApplyCheckboxes(btn)
   app.refreshPage()
 
   app.openDialog(
-    string.format("✨ Checkbox Manager: %d preferred checkbox(es) marked successfully!", markedCount),
+    string.format("✨ Checkbox Manager: %d preferred checkbox(es) applied successfully!", markedCount),
     { "OK" }, "FormFillAINoopCallback"
   )
+  return true
+end
+
+function onOpenCheckboxManager()
+  local doc = app.getDocumentStructure()
+  if not doc or not doc.pages or #doc.pages == 0 then
+    app.openDialog("FormFillAI: Please open a document first.", { "OK" }, "FormFillAINoopCallback", true)
+    return
+  end
+
+  local pageIdx = doc.currentPage or 1
+  local pageInfo = doc.pages[pageIdx]
+  local pdfPath = doc.pdfBackgroundFilename or ""
+  local home = os.getenv("HOME") or os.getenv("USERPROFILE") or ""
+
+  local tempDir = getTempDirectory()
+  local appliedJson = tempDir .. "/formfill_cb_applied_" .. tostring(pageIdx) .. ".json"
+
+  -- If appliedJson already exists (e.g. user selected and clicked Apply in Manager):
+  -- Apply it immediately without opening the window!
+  if fileExists(appliedJson) then
+    applyCheckboxJson(pageIdx, appliedJson)
+    return
+  end
+
+  -- Resolve PDF path
+  if pdfPath ~= "" and not fileExists(pdfPath) then
+    if doc.xoppFilename and doc.xoppFilename ~= "" then
+      local xoppDir = doc.xoppFilename:match("^(.*)[/\\]")
+      if xoppDir and fileExists(xoppDir .. "/" .. pdfPath) then
+        pdfPath = xoppDir .. "/" .. pdfPath
+      end
+    end
+    if not fileExists(pdfPath) then
+      local fname = pdfPath:match("([^/\\]+)$") or pdfPath
+      local searchDirs = { home .. "/Downloads/", home .. "/Documents/", home .. "/Desktop/", "/tmp/" }
+      for _, sd in ipairs(searchDirs) do
+        if fileExists(sd .. fname) then
+          pdfPath = sd .. fname
+          break
+        end
+      end
+    end
+  end
+
+  local boxes = PluginState.checkboxes[pageIdx] or {}
+
+  -- If current page hasn't been detected yet, detect it automatically
+  if #boxes == 0 then
+    onDetectCurrentPage()
+    boxes = PluginState.checkboxes[pageIdx] or {}
+  end
+
+  if #boxes == 0 then
+    app.openDialog(
+      "No checkboxes detected on this page.\n\n" ..
+      "Use 'FormFillAI: Add Checkbox Here' to place one.",
+      { "OK" }, "FormFillAINoopCallback"
+    )
+    return
+  end
+
+  local dataJson = tempDir .. "/formfill_cbs_" .. tostring(pageIdx) .. ".json"
+  local pageData = {
+    page = pageIdx,
+    checkboxes = boxes
+  }
+  local f = io.open(dataJson, "w")
+  if f and loadJsonLibrary() then
+    f:write(json.encode(pageData))
+    f:close()
+  end
+
+  local python = getPythonExecutable()
+  local dir = getPluginDirectory()
+  local cliScript = dir .. "/backend/cli.py"
+
+  local isWindows = package.config:sub(1, 1) == "\\"
+  local cmd = string.format('"%s" "%s" checkboxes --data "%s" --out "%s" --page %d', python, cliScript, dataJson, appliedJson, pageIdx)
+  if pdfPath and pdfPath ~= "" then
+    cmd = cmd .. string.format(' --pdf "%s"', pdfPath)
+  end
+
+  if isWindows then
+    cmd = 'start "" ' .. cmd
+  else
+    cmd = cmd .. " &"
+  end
+
+  -- Launch Manager cleanly WITHOUT modal popup to prevent any window lag or freezing!
+  print("[FormFillAI] Launching Checkbox Manager cleanly: " .. cmd)
+  os.execute(cmd)
 end
 
 -- ---------------------------------------------------------------------------
--- d. Remove Guide Borders (Removes all dashed borders, retains all typed text!)
+-- d. Remove Guide Borders (Removes all dashed borders & artifacts; retains typed text)
 -- ---------------------------------------------------------------------------
 
 function onRemoveGuideBorders()
@@ -853,7 +826,7 @@ function onRemoveGuideBorders()
   local strokes = app.getStrokes("layer") or {}
   local dashedRefs = {}
   for _, s in ipairs(strokes) do
-    if s.lineStyle == "dash" and s.ref then
+    if (s.lineStyle == "dash" or s.color == 0x90B0D0 or s.color == 9482448) and s.ref then
       table.insert(dashedRefs, s.ref)
     end
   end
@@ -863,23 +836,24 @@ function onRemoveGuideBorders()
     app.activateAction("delete")
   end
 
-  -- 3. Remove ONLY untouched "[ ... ]" placeholder prompts
+  -- 3. Remove any bracket/placeholder artifacts if any were created
   -- ALL TEXT TYPED BY THE USER IS 100% PRESERVED AND RETAINED!
   local texts = app.getTexts("layer") or {}
-  local placeholderRefs = {}
+  local artifactRefs = {}
   local userTextCount = 0
 
   for _, t in ipairs(texts) do
-    if (t.text == "[ ... ]" or t.text == " ") and t.ref then
-      table.insert(placeholderRefs, t.ref)
+    local str = t.text or ""
+    if str == "[ ... ]" or str == "..." or str:match("^%s*$") then
+      if t.ref then table.insert(artifactRefs, t.ref) end
     else
       userTextCount = userTextCount + 1
     end
   end
 
-  if #placeholderRefs > 0 then
+  if #artifactRefs > 0 then
     app.clearSelection()
-    app.addToSelection(placeholderRefs)
+    app.addToSelection(artifactRefs)
     app.activateAction("delete")
   end
 
@@ -887,12 +861,12 @@ function onRemoveGuideBorders()
 
   app.openDialog(
     string.format(
-      "✨ Guide Borders Cleaned Successfully!\n\n" ..
-      "• All dashed borders around input fields and checkboxes removed.\n" ..
-      "• Untouched placeholders cleaned.\n" ..
+      "✨ Guide Borders & Artifacts Removed!\n\n" ..
+      "• All dashed guide borders around input fields and checkboxes removed.\n" ..
+      "• Cleaned all template artifacts.\n" ..
       "• User-typed text fields retained: %d field(s)\n" ..
       "• Checkmarks retained intact.\n\n" ..
-      "Your document is 100% clean and ready for saving/exporting to PDF!",
+      "Your form now looks naturally typed and is ready to save or export!",
       userTextCount
     ),
     { "OK" },
@@ -901,88 +875,47 @@ function onRemoveGuideBorders()
 end
 
 -- ---------------------------------------------------------------------------
--- e. Add Checkbox Here (At exact center of rectangular selection region)
+-- e. Add Checkbox Here (Choose shape, then resize and place with handles)
 -- ---------------------------------------------------------------------------
 
-function onAddCheckboxAtSelection()
+function onAddCheckboxPrompt()
+  app.openDialog(
+    "Choose Checkbox Shape to insert:\n\n" ..
+    "(After choosing, resize handles will appear around the checkbox so you can resize and drag it to your preferred place)",
+    { "✓ Check", "✗ Cross", "■ Square", "● Bullet", "☐ Box" },
+    "cbOnChooseCheckboxShape"
+  )
+end
+
+function cbOnChooseCheckboxShape(btn)
+  if not btn or btn < 1 or btn > 5 then return end
+
+  local shapeNames = { "check", "cross", "square", "bullet", "box" }
+  local chosenShape = shapeNames[btn] or "check"
+
   local config = loadConfig()
   local doc = app.getDocumentStructure()
   local pageIdx = doc and doc.currentPage or 1
+  local pageInfo = doc and doc.pages[pageIdx]
+  local pageWidth = pageInfo and pageInfo.pageWidth or 612.0
+  local pageHeight = pageInfo and pageInfo.pageHeight or 792.0
 
-  local rectX, rectY, rectW, rectH = nil, nil, nil, nil
+  local size = 16.0
+  local posX = (pageWidth - size) / 2.0
+  local posY = (pageHeight - size) / 3.0
 
-  -- 1. Extract from selection bounding box
-  local selInfo = app.getToolInfo("selection")
-  if selInfo then
-    local bounds = selInfo.snappedBounds or selInfo.boundingBox or selInfo.originalBounds
-    if bounds and bounds.width and bounds.width > 2.0 and bounds.height and bounds.height > 2.0 then
-      rectX = bounds.x
-      rectY = bounds.y
-      rectW = bounds.width
-      rectH = bounds.height
-    end
+  -- If user currently has an active selection or selected object, use its center
+  local sel = app.getToolInfo("selection")
+  if sel and sel.boundingBox and sel.boundingBox.width and sel.boundingBox.width > 2.0 then
+    posX = sel.boundingBox.x + (sel.boundingBox.width - size) / 2.0
+    posY = sel.boundingBox.y + (sel.boundingBox.height - size) / 2.0
   end
-
-  -- 2. Extract from selected strokes if any
-  if not rectX then
-    local strokes = app.getStrokes("selection")
-    if strokes and #strokes > 0 and strokes[1].x and #strokes[1].x > 0 then
-      local minX, maxX = 1e9, -1e9
-      local minY, maxY = 1e9, -1e9
-      for _, s in ipairs(strokes) do
-        for k = 1, #s.x do
-          if s.x[k] < minX then minX = s.x[k] end
-          if s.x[k] > maxX then maxX = s.x[k] end
-          if s.y[k] < minY then minY = s.y[k] end
-          if s.y[k] > maxY then maxY = s.y[k] end
-        end
-      end
-      if maxX > minX and maxY > minY then
-        rectX = minX
-        rectY = minY
-        rectW = maxX - minX
-        rectH = maxY - minY
-      end
-    end
-  end
-
-  -- 3. Extract from selected text if any
-  if not rectX then
-    local texts = app.getTexts("selection")
-    if texts and #texts > 0 then
-      rectX = texts[1].x
-      rectY = texts[1].y
-      rectW = texts[1].width or 20.0
-      rectH = texts[1].height or 20.0
-    end
-  end
-
-  -- If user has not made a rectangular selection yet:
-  if not rectX then
-    app.openDialog(
-      "FormFillAI: Please use the Rectangular Selection tool to select where you want the checkbox, then click 'Add Checkbox Here'.\n\n" ..
-      "(The Rectangular Selection tool has been activated for you!)",
-      { "OK" },
-      "FormFillAINoopCallback"
-    )
-    pcall(function()
-      app.changeActionState("select-tool", app.C.Tool_selectRect)
-    end)
-    return
-  end
-
-  -- Calculate EXACT center of the rectangular selection region
-  local centerX = rectX + rectW / 2.0
-  local centerY = rectY + rectH / 2.0
-  local cbSize = math.max(8.0, math.min(16.0, math.min(rectW, rectH)))
-  local posX = centerX - cbSize / 2.0
-  local posY = centerY - cbSize / 2.0
 
   local newBox = {
     x = posX,
     y = posY,
-    width = cbSize,
-    height = cbSize,
+    width = size,
+    height = size,
     isChecked = true,
     strokeRefs = nil
   }
@@ -997,16 +930,33 @@ function onAddCheckboxAtSelection()
   local color = config.checkbox_color or 0x002060
   local width = config.checkbox_stroke_width or 1.6
 
-  -- Draw checkmark at exact center
-  local checks = createCheckmarkStrokes(newBox, color, width)
-  local cRefs = app.addStrokes({ strokes = checks, allowUndoRedoAction = "individual" })
-  newBox.strokeRefs = cRefs
+  local strokes = {}
+  if chosenShape == "cross" then
+    strokes = createCrossStrokes(newBox, color, width)
+  elseif chosenShape == "square" then
+    strokes = createSquareStrokes(newBox, color, width)
+  elseif chosenShape == "bullet" then
+    strokes = createBulletStrokes(newBox, color, width)
+  elseif chosenShape == "box" then
+    strokes = createEmptyBoxStrokes(newBox, color, width)
+  else
+    strokes = createCheckmarkStrokes(newBox, color, width)
+  end
 
-  -- Release selection and refresh page
+  local refs = app.addStrokes({ strokes = strokes, allowUndoRedoAction = "individual" })
+  newBox.strokeRefs = refs
+
+  -- Immediately select the new checkbox with the Selection Tool
+  -- Corner resize handles appear so the user can resize normally and drag to preferred place!
   app.clearSelection()
-  app.refreshPage()
+  if refs and #refs > 0 then
+    app.addToSelection(refs)
+  end
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_selectRect)
+  end)
 
-  print(string.format("[FormFillAI] Added checkbox at center of selection: X=%.1f, Y=%.1f (Size=%.1f)", posX, posY, cbSize))
+  app.refreshPage()
 end
 
 -- ---------------------------------------------------------------------------
