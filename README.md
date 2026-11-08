@@ -1,138 +1,153 @@
 # 📝 FormFillAI: AI-Powered Flat PDF Form Field Detection for Xournal++
 
-**FormFillAI** is a high-performance Xournal++ plugin that automatically detects flat (non-interactive/scanned) PDF form fields using small, state-of-the-art vision models (**FFDNet-S** and **FFDNet-L**) and overlays fillable text boxes and interactive checkboxes with a single click or keystroke.
+[![GitHub Repository](https://img.shields.io/badge/GitHub-rmahbub01%2FFormFillAI-blue.svg?logo=github)](https://github.com/rmahbub01/FormFillAI)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Xournal++ Plugin](https://img.shields.io/badge/Xournal%2B%2B-Plugin%20v1.0-green.svg)](https://xournalpp.github.io/)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Flatpak%20%7C%20Snap%20%7C%20macOS%20%7C%20Windows-blue)](https://github.com/rmahbub01/FormFillAI)
+
+**FormFillAI** is an intelligent, high-performance Xournal++ plugin that automatically detects flat (non-interactive, scanned, or government) PDF form fields using lightweight deep vision models (**FFDNet-S** and **FFDNet-L**) and overlays fillable text inputs and vector checkboxes with a single click or keyboard shortcut.
+
+Native support for **Bangla / Bengali fonts (Nikosh, Kalpurush, SolaimanLipi, etc.)** and standard English typography ensures professional, naturally filled documents without any visual artifacts.
 
 ---
 
-## ✨ Features
+## ⚡ Quick Start: 1-Liner Installation & Uninstallation
 
-### 1. 🔤 Exact-Fit Overlay Text Boxes (Non-Movable & Non-Resizable)
-- Automatically analyzes the page layout and places overlay text boxes **matching the exact width and height** of every detected input field.
-- **Non-movable & non-resizable in text editing mode**: Automatically selects Xournal++'s Text Tool (`Tool_text`) upon detection so clicking inside any box immediately opens inline typing without accidental dragging, shifting, or resizing.
-- Isolates form overlays on a dedicated **`FormFillAI` layer**, keeping your personal annotations and document drawings clean.
-- Configurable subtle visual guide outlines to instantly see every interactive field on flat scanned documents.
+### 🚀 1-Liner Install (Linux & macOS)
 
-### 2. 🎨 Full Text Box Customization & Complete Font Picker (with Bangla Support)
-- **Delete overlays**: Delete individual overlays directly or wipe all detected fields on the current page with `Clear All Form Overlays`.
-- **Add manual overlays**: Missed a field? Use `Add Text Field Overlay (at Selection / Center)` to place custom-sized input overlays anywhere.
-- **Font & Style Picker**:
-  - **Dynamic System Font Discovery**: Enumerate and select from **ALL fonts installed on your machine** (over 400+ system fonts).
-  - **Dedicated Bangla Font Support**: Built-in priority access to all installed Bangla/Bengali fonts (**Nikosh**, **Kalpurush**, **SolaimanLipi**, **Siyam Rupali**, **Noto Sans Bengali**, **Tiro Bangla**, **Vrinda**, etc.) with live Bangla text preview.
-  - **Auto-fit font size**: Automatically scales text height to ~72% of single-line form field height for a natural, printed look, or set a fixed font size.
-  - **Font color**: Choose from presets or use the custom visual color picker.
+Install FormFillAI silently in one command (automatically detects native package, Flatpak, or Snap, downloads the AI model, and activates the plugin in Xournal++):
 
-### 3. ☑️ Versatile Checkbox Auto-Fill & Manual Marking
-- **Fill all checkboxes in one click**:
-  - **Checked (`✓`)**: Natural, crisp hand-checked vector stroke.
-  - **Crossed (`✗`)**: Clean diagonal corner-to-corner cross.
+```bash
+curl -LsSf https://raw.githubusercontent.com/rmahbub01/FormFillAI/master/install.sh | bash
+```
+
+*Or with `sudo` (installs cleanly into your user account and fixes permissions automatically):*
+
+```bash
+sudo curl -LsSf https://raw.githubusercontent.com/rmahbub01/FormFillAI/master/install.sh | sh
+```
+
+---
+
+### 🗑️ 1-Liner Complete Uninstall (Linux & macOS)
+
+Completely purge FormFillAI from all Xournal++ installations, remove cached model weights, and clean `settings.xml`:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/rmahbub01/FormFillAI/master/uninstall.sh | bash
+```
+
+*Or with `sudo`:*
+
+```bash
+sudo curl -LsSf https://raw.githubusercontent.com/rmahbub01/FormFillAI/master/uninstall.sh | sh
+```
+
+---
+
+## ✨ Key Features
+
+### 1. 🔤 Exact-Fit Overlay Text Boxes (Bounded & Pure Natural Look)
+- **Zero Artifacts**: Fields are generated with clean text bounds without drawing dashed borders or outlines on the PDF, leaving the final exported document looking naturally typed.
+- **Pure Black Ink**: Text is pre-configured with Pure Black (`#000000`) ink to match standard official print and government documents.
+- **Dedicated Layer**: Overlays reside on a dedicated **`FormFillAI`** layer, keeping your personal handwritten notes and drawings clean and isolated.
+- **Instant Inline Typing**: Activating detection automatically switches Xournal++ to the Text Tool (`Tool_text`). Simply click into any box to begin typing immediately.
+
+### 2. 🇧🇩 First-Class Bangla & System Font Support
+- **Bangla Standard**: Defaults to **Nikosh** (Bangladesh Government Standard) and prioritizes **Kalpurush**, **SolaimanLipi**, **Noto Sans Bengali**, and **Siyam Rupali**.
+- **440+ System Fonts**: Built-in searchable browser dynamically discovers all fonts installed on your machine (Linux, macOS, and Windows) with real-time keyword filtering.
+- **Auto-Fit Sizing**: Font size automatically scales to ~72% of the detected single-line box height for optimal typographic harmony, or switch to a custom fixed point size.
+
+### 3. ☑️ Instant Checkbox & Shape Placement
+- **Drop Anywhere**: Select `Add Checkbox Here` (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>) to insert your preferred shape:
+  - **Checkmark (`✓`)**: Crisp, official vector tick.
+  - **Cross (`✗`)**: Corner-to-corner cross mark.
   - **Solid Square (`■`)**: Filled block for shaded questionnaire boxes.
-  - **Bullet Dot (`●`)**: Centered circular dot for radio choices.
-  - **Custom Shape / Symbol**: User-defined character (e.g. `★`, `✔`, `X`, `Y`, `N`).
-- **Manual checkbox addition**: If the AI misses an irregular checkbox, click `Add Checkbox Here (at Selection / Center)` to manually place and register one.
-- **Toggle nearest checkbox**: Easily toggle/mark the checkbox closest to your cursor or view center using `Ctrl + Shift + T`.
+  - **Bullet Dot (`●`)**: Clean circular dot for radio choices.
+  - **Empty Box (`☐`)**: Crisp rectangular border.
+- **Immediate Resize & Move Handles**: Placed shapes immediately activate selection handles so you can resize and drag them directly to your desired position.
+- **Pure Black Ink**: All checkboxes and shapes are drawn with Pure Black (`0x000000`) ink.
 
-### 4. 🚀 Ultra-Easy 1-Click Installation
-- Built with zero-friction setup:
-  - **Linux & macOS**: Run `./install.sh` or `python3 install.py`.
-  - **Windows**: Double-click `install.bat` or run `python install.py`.
-  - **Graphical Installer**: `python3 install.py` launches a 1-click install window.
-- Automatically enables the plugin in Xournal++ without requiring manual configuration.
+### 4. 🎛️ Clean, Minimal Notifications & Interface
+- **Uncluttered Feedback**: Replaces noisy modals with refined, single-sentence alerts (e.g. `FormFillAI: 24 form fields ready to fill.`).
+- **Always-Visible Action Buttons**: The Settings dialog is auto-centered and optimized (`640x480`), with **`💾 Save Preferences`**, **`⬇️ Check/Download Models`**, and **`Cancel`** permanently docked at the bottom without any manual window resizing.
+
+---
+
+## 🖥️ Streamlined 4-Tool Menu (`Plugin > FormFillAI`)
+
+| Action | Shortcut | Description |
+|---|---|---|
+| **Detect Current Page** | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | Scans the active page and creates bounded fillable text overlays matching exact field coordinates. |
+| **Detect Full PDF** | — | High-speed batch inference across all pages in memory (~2.8s) with zero freezing. |
+| **Add Checkbox Here** | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | Opens shape picker (`✓`, `✗`, `■`, `●`, `☐`) and drops the shape with live resize/move handles. |
+| **Settings and Preferences** | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Configure fonts (Bangla / English), font sizing modes, AI models, and detection sensitivity. |
 
 ---
 
 ## 🧠 AI Models: FFDNet-S & FFDNet-L
 
-FormFillAI uses the open-source **FFDNet** (Form Field Detection Network) object detection models from the *CommonForms* project:
+FormFillAI uses the open-source **FFDNet** (Form Field Detection Network) vision models optimized for document forms:
 
 | Model | Parameters | Weights Size | Optimized Engine | Best For |
 |---|---|---|---|---|
-| **FFDNet-S** *(Default)* | ~6 Million | ~18 MB | ONNX Runtime / CPU | High speed, low memory, instant CPU response |
-| **FFDNet-L** | ~25 Million | ~48 MB | ONNX Runtime / CUDA / CPU | High accuracy on dense, low-contrast, or complex forms |
+| **FFDNet-S** *(Default)* | ~6 Million | ~37 MB | ONNX Runtime / CPU | Ultra-fast inference (< 0.8s on laptop CPUs), lightweight |
+| **FFDNet-L** | ~25 Million | ~100 MB | ONNX Runtime / CUDA / CPU | Maximum recall on dense, low-contrast, or degraded scans |
 
-The plugin natively bundles an **ONNX Runtime engine**—meaning no massive GPU or multi-gigabyte PyTorch downloads are required. It runs in under **0.8 seconds** on standard laptop CPUs.
+The installer automatically caches the default model (`FFDNet-S.onnx`) into `~/.cache/formfillai/models/` during setup, ensuring zero inference delay when opening Xournal++.
 
 ---
 
-## 📥 Installation
+## 📦 Multiplatform Installation Methods
 
-### 1-Click Graphical Installer & Uninstaller (All Platforms)
+FormFillAI supports all packaging variants and operating systems:
 
-Run the Python manager from this folder:
-
+### 1. Cloned Repository Installation (Linux & macOS)
 ```bash
-python3 install.py
+git clone https://github.com/rmahbub01/FormFillAI.git
+cd FormFillAI
+./install.sh
+```
+*To completely uninstall:*
+```bash
+./uninstall.sh
 ```
 
-A friendly management window appears with detected packaging versions (RPM, DEB, Flatpak, Snap, macOS, Windows) and two primary 1-click buttons:
-* **`✨ 1-Click Install FormFillAI`**: Automatically copies plugin files, configures `settings.xml`, and links dependencies.
-* **`🗑️ 1-Click Complete Uninstall`**: Completely removes all plugin files, clears cache, and restores `settings.xml` cleanly.
+### 2. Windows Installation (EXE & Portable)
+- **Install**: Double-click `install.bat` or run `python install.py`
+- **Uninstall**: Double-click `uninstall.bat` or run `python install.py --uninstall`
+
+### 3. Optional Graphical Manager (All Platforms)
+Launch the graphical installer / uninstaller window anytime:
+```bash
+python3 install.py --gui
+```
+
+### 4. Supported Environments
+- **Linux Native**: DEB (Ubuntu/Debian/Mint), RPM (Fedora/RHEL), Arch Linux, Void, openSUSE (`~/.config/xournalpp/plugins/`).
+- **Linux Flatpak Sandbox**: Automatic detection and installation into `~/.var/app/com.github.xournalpp.xournalpp/config/xournalpp/plugins/`.
+- **Linux Snap Sandbox**: Automatic detection and installation into `~/snap/xournalpp/current/.config/xournalpp/plugins/`.
+- **macOS**: Native and Homebrew Xournal++ (`~/Library/Application Support/xournalpp/plugins/`).
+- **Windows**: Standard `%LOCALAPPDATA%\xournalpp\plugins\` and Roaming `%APPDATA%\xournalpp\plugins\`.
 
 ---
 
-### Command Line Installation & Uninstallation
+## 🧪 Verification & Unit Tests
 
-* **Linux & macOS (Native, Flatpak, Snap):**
-  * **Install**: `./install.sh` or `python3 install.py --install`
-  * **Complete Uninstall**: `./uninstall.sh` or `python3 install.py --uninstall`
-* **Windows (EXE, Portable):**
-  * **Install**: Double-click `install.bat` or `python install.py --install`
-  * **Complete Uninstall**: Double-click `uninstall.bat` or `python install.py --uninstall`
-
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Shortcut | Action | Description |
-|---|---|---|
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> | **Detect Current Page** | Detects text fields and creates bounded fillable overlays in Pure Black Nikosh font |
-| | **Detect Full PDF** | High-speed batch detection across all PDF pages in memory (~2.8s) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd> | **Add Checkbox Here** | Choose shape (`✓`, `✗`, `■`, `●`, `☐`); drops onto PDF with handles to resize & drag anywhere |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | **Settings and Preferences** | Configure 446+ system fonts (Nikosh Bangla default), AI models, and sensitivities |
-
----
-
-## 🖥️ Menu Actions (`Plugin > FormFillAI`)
-
-FormFillAI provides a streamlined 4-tool workflow:
-
-1. **FormFillAI: Detect Current Page** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd>): Scans the active page and overlays fillable text boxes matching the exact boundaries (`x, y, width, height`) of detected fields. Clicking inside any field immediately activates typing with Pure Black Nikosh font.
-2. **FormFillAI: Detect Full PDF**: High-speed batch detection across all PDF pages in memory (~2.8s) with zero freezing.
-3. **FormFillAI: Add Checkbox Here** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>X</kbd>): No selection needed beforehand. Prompts you to pick a shape (`✓ Check`, `✗ Cross`, `■ Square`, `● Bullet`, `☐ Box`), immediately drops the shape onto the PDF in Pure Black ink, and activates selection resize handles so you can resize and reposition it freely.
-4. **FormFillAI: Settings and Preferences** (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>): Configure fonts (with Bangla preview) and AI model sensitivity (`FFDNet-S` / `FFDNet-L`).
-
----
-
-## 🛠️ Settings Configuration
-
-Open the settings dialog via `Plugin > FormFillAI > Settings and Preferences` or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>:
-
-1. **AI Model Selection**: Switch seamlessly between `FFDNet-S` and `FFDNet-L`.
-2. **Confidence Sensitivity**: Adjust detection threshold slider (default: `28%`).
-3. **Font Settings**: Choose font family, auto-fitting vs fixed font size, and text color.
-4. **Checkbox Settings**: Choose shape (`✓`, `✗`, `■`, `●`, or custom character), line thickness, and color.
-5. **Visual Guidelines**: Toggle subtle field border outlines.
-
-Settings are saved in `~/.config/xournalpp/plugins/FormFillAI/config.json`.
-
----
-
-## 🧪 Testing & Verification
-
-Run the automated test suite:
+Run the automated test suite from the repository:
 
 ```bash
-python3 tests/test_detector.py
+python3 -m unittest discover tests
 ```
 
 Tests verify:
-- Configuration persistence
-- Model weight resolution
-- FFDNet-S and FFDNet-L object detection
-- Typographic coordinate mapping
-- Full headless Xournal++ `.xopp` document generation and Cairo rendering
+- Configuration loading, persistence, and schema migrations
+- FFDNet-S and FFDNet-L model path resolution and caching
+- Typographic point-to-pixel coordinate transformations
+- Full headless Xournal++ `.xopp` document generation, font overlays, and Cairo image rendering
 
 ---
 
-## 📜 License
+## 📄 License
 
-MIT License. Free and open source for all users.
+Distributed under the [MIT License](LICENSE). Free and open-source for personal, educational, and commercial use.

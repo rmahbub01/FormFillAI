@@ -61,6 +61,7 @@ fi
 
 if [ -n "$PYTHON_BIN" ] && [ -n "$INSTALL_PY" ] && [ -f "$INSTALL_PY" ]; then
     SUDO_USER="$REAL_USER" "$PYTHON_BIN" "$INSTALL_PY" --uninstall
+    exit 0
 else
     # 3. Direct Shell Uninstaller (works 100% standalone, perfect for curl | sh)
     printf "🗑️ Removing plugin directories...\n"

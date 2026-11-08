@@ -94,6 +94,15 @@ done
 if [ -n "$PYTHON_BIN" ] && [ -f "$REPO_DIR/install.py" ]; then
     # Run silent python installer with environment preserved
     SUDO_USER="$REAL_USER" "$PYTHON_BIN" "$REPO_DIR/install.py" --install "$@"
+
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        chown -R "$REAL_USER":"$REAL_USER" "$REAL_HOME/.config/xournalpp/plugins/FormFillAI" 2>/dev/null || true
+        chown -R "$REAL_USER":"$REAL_USER" "$REAL_HOME/.cache/formfillai" 2>/dev/null || true
+    fi
+    if [ -n "$CLEANUP_TMP" ] && [ -d "$CLEANUP_TMP" ]; then
+        rm -rf "$CLEANUP_TMP"
+    fi
+    exit 0
 else
     # 4. Fallback Pure Shell Installer (when python is missing)
     OS_TYPE="$(uname -s)"
