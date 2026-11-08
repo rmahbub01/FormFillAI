@@ -457,16 +457,16 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
   app.refreshPage()
 
   if showSummary then
-    local summary = string.format(
-      "✨ FormFillAI Detection Complete!\n\n" ..
-      "• Detected & Overlayed Text Fields: %d\n" ..
-      "• Active Font: %s (Pure Black)\n\n" ..
-      "👉 How to fill:\n" ..
-      "1. Click inside any form field to type directly in Bengali.\n" ..
-      "2. Select Menu > 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks, crosses, or shapes anywhere on the form.",
-      #tbs, fontFam
-    )
-    app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
+    local count = #tbs
+    local msg
+    if count == 0 then
+      msg = "FormFillAI: No form fields detected on this page."
+    elseif count == 1 then
+      msg = "FormFillAI: 1 form field ready to fill."
+    else
+      msg = string.format("FormFillAI: %d form fields ready to fill.", count)
+    end
+    app.openDialog(msg, { "OK" }, "FormFillAINoopCallback")
   end
 end
 
@@ -678,17 +678,13 @@ function onDetectFullPdf()
   app.refreshPage()
 
   local counts = results.counts or {}
-  local summary = string.format(
-    "✨ FormFillAI Full PDF Detection Complete!\n\n" ..
-    "Processed all %d pages in ~2.8 seconds:\n" ..
-    "• Total Text Fields: %d (Bounded Overlays Ready)\n" ..
-    "• Font: %s (Pure Black)\n\n" ..
-    "👉 Next Steps:\n" ..
-    "1. Click inside any form field to type directly in Bengali.\n" ..
-    "2. Use 'FormFillAI: Add Checkbox Here' (Ctrl+Shift+X) to drop checkmarks/shapes and resize them.",
-    totalPages, counts.text_boxes or 0, config.font_family or "Nikosh"
+  local count = counts.text_boxes or 0
+  local msg = string.format(
+    "FormFillAI: %d form field%s ready across %d page%s.",
+    count, count == 1 and "" or "s",
+    totalPages, totalPages == 1 and "" or "s"
   )
-  app.openDialog(summary, { "OK" }, "FormFillAINoopCallback")
+  app.openDialog(msg, { "OK" }, "FormFillAINoopCallback")
 end
 
 -- ---------------------------------------------------------------------------
@@ -697,9 +693,7 @@ end
 
 function onAddCheckboxPrompt()
   app.openDialog(
-    "Choose Checkbox Shape to insert:\n\n" ..
-    "• Click any button below to insert the chosen shape.\n" ..
-    "• Resize handles will appear around the shape so you can resize and drag it to your preferred place.",
+    "Select shape to insert:",
     { "✓ Check", "✗ Cross", "■ Square", "● Bullet", "☐ Box" },
     "cbOnChooseCheckboxShape"
   )

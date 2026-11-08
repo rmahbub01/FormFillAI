@@ -30,8 +30,6 @@ BANGLA_KEYWORDS = [
     "kohinoor", "ruposhi", "mitra", "ekushey"
 ]
 
-SAMPLE_BANGLA_TEXT = "নাম / Name: মোঃ মাহবুবুর রহমান | পদবি: সহকারী প্রকৌশলী | ১ ২ ৩ ৪ ৫"
-
 
 def get_all_system_fonts() -> Tuple[List[str], List[str]]:
     """
@@ -106,8 +104,17 @@ class FormFillAISettingsDialog:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("FormFillAI - Settings & Bangla Font Tools")
-        self.root.geometry("680x760")
-        self.root.minsize(620, 700)
+
+        # Auto-center and constrain dialog to guarantee all buttons are fully visible
+        self.root.update_idletasks()
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        win_w = min(640, max(520, screen_w - 60))
+        win_h = min(480, max(400, screen_h - 120))
+        pos_x = max(0, (screen_w - win_w) // 2)
+        pos_y = max(0, (screen_h - win_h) // 2)
+        self.root.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
+        self.root.minsize(520, 380)
 
         self.config = load_config()
 
@@ -123,7 +130,6 @@ class FormFillAISettingsDialog:
 
         self._init_variables()
         self._build_ui()
-        self._update_preview()
 
     def _init_variables(self) -> None:
         self.var_model = tk.StringVar(value=self.config.get("model_name", "FFDNet-S"))
@@ -150,46 +156,32 @@ class FormFillAISettingsDialog:
         self.var_font_filter = tk.StringVar(value="")
 
     def _build_ui(self) -> None:
-        main_frame = ttk.Frame(self.root, padding=16)
+        main_frame = ttk.Frame(self.root, padding=(14, 10, 14, 10))
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Title Banner
+        # 1. Title Banner at Top
         title_frame = ttk.Frame(main_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 12))
+        title_frame.pack(side=tk.TOP, fill=tk.X, pady=(0, 6))
 
         lbl_title = tk.Label(
             title_frame,
-            text="✨ FormFillAI Settings (Bangla Supported)",
-            font=("Sans", 15, "bold"),
+            text="✨ FormFillAI Settings",
+            font=("Sans", 13, "bold"),
             fg="#1a365d"
         )
         lbl_title.pack(anchor=tk.W)
 
         lbl_sub = tk.Label(
             title_frame,
-            text="Auto-detect flat PDF form fields and configure Bangla fonts & AI models.",
+            text="Configure Bangla fonts, text sizing, and form field AI detection.",
             font=("Sans", 9),
             fg="#4a5568"
         )
         lbl_sub.pack(anchor=tk.W)
 
-        # Notebook for categorized tabs
-        nb = ttk.Notebook(main_frame)
-        nb.pack(fill=tk.BOTH, expand=True, pady=(0, 12))
-
-        # Tab 1: Bangla & All System Fonts
-        tab_font = ttk.Frame(nb, padding=12)
-        nb.add(tab_font, text="🇧🇩 Fonts & Bangla Support")
-        self._build_font_tab(tab_font)
-
-        # Tab 2: AI Model & Detection
-        tab_ai = ttk.Frame(nb, padding=12)
-        nb.add(tab_ai, text="🤖 AI Model (FFDNet)")
-        self._build_ai_tab(tab_ai)
-
-        # Bottom Action Bar
+        # 2. Bottom Action Bar - Anchored permanently at bottom so buttons NEVER get hidden!
         btn_bar = ttk.Frame(main_frame)
-        btn_bar.pack(fill=tk.X)
+        btn_bar.pack(side=tk.BOTTOM, fill=tk.X, pady=(10, 0))
 
         btn_save = tk.Button(
             btn_bar,
@@ -232,10 +224,24 @@ class FormFillAISettingsDialog:
         )
         btn_cache.pack(side=tk.LEFT)
 
+        # 3. Notebook for categorized tabs - Fills remaining middle space
+        nb = ttk.Notebook(main_frame)
+        nb.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Tab 1: Bangla & All System Fonts
+        tab_font = ttk.Frame(nb, padding=10)
+        nb.add(tab_font, text="🇧🇩 Fonts & Bangla Support")
+        self._build_font_tab(tab_font)
+
+        # Tab 2: AI Model & Detection
+        tab_ai = ttk.Frame(nb, padding=10)
+        nb.add(tab_ai, text="🤖 AI Model (FFDNet)")
+        self._build_ai_tab(tab_ai)
+
     def _build_font_tab(self, parent: ttk.Frame) -> None:
         # Quick Bangla Font Picker
-        grp_bangla = ttk.LabelFrame(parent, text="🇧🇩 Installed Bangla Fonts (Quick Select)", padding=10)
-        grp_bangla.pack(fill=tk.X, pady=(0, 10))
+        grp_bangla = ttk.LabelFrame(parent, text="🇧🇩 Installed Bangla Fonts (Quick Select)", padding=8)
+        grp_bangla.pack(fill=tk.X, pady=(0, 6))
 
         bangla_sub = ttk.Frame(grp_bangla)
         bangla_sub.pack(fill=tk.X)
@@ -245,11 +251,11 @@ class FormFillAISettingsDialog:
             text=f"Found {len(self.bangla_fonts)} Bangla fonts installed on your machine:",
             font=("Sans", 9)
         )
-        lbl_bangla_desc.pack(anchor=tk.W, pady=(0, 6))
+        lbl_bangla_desc.pack(anchor=tk.W, pady=(0, 4))
 
         # Popular Bangla font buttons
         btn_row = ttk.Frame(grp_bangla)
-        btn_row.pack(fill=tk.X, pady=(0, 6))
+        btn_row.pack(fill=tk.X, pady=(0, 2))
 
         top_bangla = ["Nikosh", "Kalpurush", "SolaimanLipi", "Noto Sans Bengali", "Siyam Rupali"]
         for b_name in top_bangla:
@@ -268,17 +274,25 @@ class FormFillAISettingsDialog:
                 )
                 b_btn.pack(side=tk.LEFT, padx=3)
 
-        # Searchable Font Dropdown / List
-        grp_all_fonts = ttk.LabelFrame(parent, text="All Installed Fonts (400+ Fonts with Live Search)", padding=10)
-        grp_all_fonts.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        # Searchable Font List
+        grp_all_fonts = ttk.LabelFrame(parent, text="All Installed System Fonts", padding=8)
+        grp_all_fonts.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
         search_frame = ttk.Frame(grp_all_fonts)
-        search_frame.pack(fill=tk.X, pady=(0, 6))
+        search_frame.pack(fill=tk.X, pady=(0, 4))
 
-        tk.Label(search_frame, text="🔍 Search Font: ", font=("Sans", 9)).pack(side=tk.LEFT)
+        tk.Label(search_frame, text="🔍 Search: ", font=("Sans", 9)).pack(side=tk.LEFT)
         ent_search = ttk.Entry(search_frame, textvariable=self.var_font_filter)
         ent_search.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=4)
         ent_search.bind("<KeyRelease>", self._filter_fonts)
+
+        self.lbl_selected_font = tk.Label(
+            search_frame,
+            text=f"Selected: {self.var_font_family.get()}",
+            font=("Sans", 9, "bold"),
+            fg="#2b6cb0"
+        )
+        self.lbl_selected_font.pack(side=tk.RIGHT, padx=4)
 
         # Listbox with Scrollbar for all fonts
         list_frame = ttk.Frame(grp_all_fonts)
@@ -292,7 +306,7 @@ class FormFillAISettingsDialog:
             yscrollcommand=scrollbar.set,
             font=("Sans", 10),
             selectmode=tk.SINGLE,
-            height=6
+            height=5
         )
         self.font_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.font_listbox.yview)
@@ -302,29 +316,27 @@ class FormFillAISettingsDialog:
 
         # Font Size & Color Row
         opt_frame = ttk.Frame(parent)
-        opt_frame.pack(fill=tk.X, pady=(0, 10))
+        opt_frame.pack(fill=tk.X)
 
         # Size
-        grp_size = ttk.LabelFrame(opt_frame, text="Font Size Behavior", padding=8)
-        grp_size.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 6))
+        grp_size = ttk.LabelFrame(opt_frame, text="Font Size Behavior", padding=6)
+        grp_size.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 4))
 
         rb_auto = ttk.Radiobutton(
             grp_size,
             text="Auto-fit to box height (Recommended)",
             variable=self.var_font_mode,
-            value="auto",
-            command=self._update_preview
+            value="auto"
         )
         rb_auto.pack(anchor=tk.W)
 
         size_fixed_frame = ttk.Frame(grp_size)
-        size_fixed_frame.pack(anchor=tk.W, pady=(4, 0))
+        size_fixed_frame.pack(anchor=tk.W, pady=(2, 0))
         rb_fixed = ttk.Radiobutton(
             size_fixed_frame,
             text="Fixed size: ",
             variable=self.var_font_mode,
-            value="fixed",
-            command=self._update_preview
+            value="fixed"
         )
         rb_fixed.pack(side=tk.LEFT)
 
@@ -334,16 +346,14 @@ class FormFillAISettingsDialog:
             to=36,
             increment=0.5,
             textvariable=self.var_font_size,
-            width=5,
-            command=self._update_preview
+            width=5
         )
         spn_size.pack(side=tk.LEFT, padx=4)
-        spn_size.bind("<KeyRelease>", lambda e: self._update_preview())
         tk.Label(size_fixed_frame, text="pt", font=("Sans", 9)).pack(side=tk.LEFT)
 
         # Color
-        grp_color = ttk.LabelFrame(opt_frame, text="Font Color", padding=8)
-        grp_color.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(6, 0))
+        grp_color = ttk.LabelFrame(opt_frame, text="Font Color", padding=6)
+        grp_color.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(4, 0))
 
         c_sub = ttk.Frame(grp_color)
         c_sub.pack(fill=tk.X, pady=2)
@@ -372,34 +382,9 @@ class FormFillAISettingsDialog:
             )
             b_c.pack(side=tk.LEFT, padx=2)
 
-        # Live Font Preview Box
-        grp_prev = ttk.LabelFrame(parent, text="Live Font Preview (Bangla & English)", padding=8)
-        grp_prev.pack(fill=tk.X)
-
-        self.lbl_preview_info = tk.Label(
-            grp_prev,
-            text="",
-            font=("Sans", 8),
-            fg="#718096"
-        )
-        self.lbl_preview_info.pack(anchor=tk.W)
-
-        self.lbl_preview = tk.Label(
-            grp_prev,
-            text=SAMPLE_BANGLA_TEXT,
-            bg="#f7fafc",
-            fg="#000000",
-            relief=tk.RIDGE,
-            padx=10,
-            pady=8,
-            anchor=tk.W,
-            justify=tk.LEFT
-        )
-        self.lbl_preview.pack(fill=tk.X, pady=(4, 0))
-
     def _build_ai_tab(self, parent: ttk.Frame) -> None:
         grp_model = ttk.LabelFrame(parent, text="Form Field Detection Model", padding=10)
-        grp_model.pack(fill=tk.X, pady=(0, 10))
+        grp_model.pack(fill=tk.X, pady=(0, 8))
 
         rb1 = ttk.Radiobutton(
             grp_model,
@@ -418,7 +403,7 @@ class FormFillAISettingsDialog:
         rb2.pack(anchor=tk.W, pady=4)
 
         grp_conf = ttk.LabelFrame(parent, text="Confidence Sensitivity", padding=10)
-        grp_conf.pack(fill=tk.X, pady=(0, 10))
+        grp_conf.pack(fill=tk.X)
 
         val_frame = ttk.Frame(grp_conf)
         val_frame.pack(fill=tk.X)
@@ -441,16 +426,6 @@ class FormFillAISettingsDialog:
             command=lambda v: self.lbl_conf_val.config(text=f"{int(float(v) * 100)}%")
         )
         scale.pack(fill=tk.X, pady=(6, 0))
-
-        grp_vis = ttk.LabelFrame(parent, text="Visual Guide Borders", padding=10)
-        grp_vis.pack(fill=tk.X)
-
-        cb_borders = ttk.Checkbutton(
-            grp_vis,
-            text="Draw subtle guide borders for detected fields (helps locate fields easily)",
-            variable=self.var_borders
-        )
-        cb_borders.pack(anchor=tk.W, pady=2)
 
     def _populate_font_listbox(self, font_list: List[str]) -> None:
         self.font_listbox.delete(0, tk.END)
@@ -481,7 +456,8 @@ class FormFillAISettingsDialog:
 
     def _select_font(self, font_name: str) -> None:
         self.var_font_family.set(font_name)
-        self._update_preview()
+        if hasattr(self, "lbl_selected_font"):
+            self.lbl_selected_font.config(text=f"Selected: {font_name}")
 
     def _pick_font_color(self) -> None:
         c = colorchooser.askcolor(color=self.var_font_color.get(), title="Select Font Color")
@@ -491,23 +467,6 @@ class FormFillAISettingsDialog:
     def _set_font_color(self, hex_val: str) -> None:
         self.var_font_color.set(hex_val)
         self.swatch_font.config(bg=hex_val)
-        self._update_preview()
-
-    def _update_preview(self) -> None:
-        font_name = self.var_font_family.get() or "Sans"
-        size = int(self.var_font_size.get()) if self.var_font_mode.get() == "fixed" else 12
-        color = self.var_font_color.get() or "#000000"
-
-        mode_text = "Auto-fit to box height" if self.var_font_mode.get() == "auto" else f"Fixed {size}pt"
-        self.lbl_preview_info.config(text=f"Selected Font: {font_name} ({mode_text})")
-
-        try:
-            self.lbl_preview.config(
-                font=(font_name, max(9, min(24, size))),
-                fg=color
-            )
-        except Exception:
-            self.lbl_preview.config(font=("Sans", 12), fg=color)
 
     def _on_save(self) -> None:
         self.config["model_name"] = self.var_model.get()
