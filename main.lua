@@ -19,6 +19,8 @@ local PluginState = {
   checkboxes = {},       -- [pageIdx] = list of {x, y, width, height, isChecked, strokeRefs}
   textboxes = {},        -- [pageIdx] = list of {x, y, width, height}
   textBoxRefs = {},      -- [pageIdx] = list of lightuserdata text references
+  formLayers = {},       -- [pageIdx] = layerNr (integer index of dedicated FormFillAI layer)
+  currentDocId = nil,    -- tracks current document to reset stale layer mapping
   config = nil,
   pluginDir = nil,
 }
@@ -354,11 +356,50 @@ local function createFieldBorderStrokes(box, color, width)
   }
 end
 
-local function ensureFormFillLayer()
+local function ensureFormFillLayer(pageIdx)
+  local doc = app.getDocumentStructure()
+  if not doc or not doc.pages then return end
+
+  pageIdx = pageIdx or doc.currentPage or 1
+  local pageInfo = doc.pages[pageIdx]
+  if not pageInfo then return end
+
+  -- Invalidate stale page layer mappings if document has changed
+  local docId = (doc.pdfBackgroundFilename or "") .. "::" .. (doc.xoppFilename or "")
+  if PluginState.currentDocId ~= docId then
+    PluginState.currentDocId = docId
+    PluginState.formLayers = {}
+    PluginState.checkboxes = {}
+    PluginState.textboxes = {}
+    PluginState.textBoxRefs = {}
+  end
+
+  local totalLayers = pageInfo.layers and #pageInfo.layers or 1
+  local currentLayer = pageInfo.currentLayer or 1
+
+  -- Check if we already have a valid FormFillAI layer tracked for this page
+  local targetLayer = PluginState.formLayers[pageIdx]
+  if targetLayer and targetLayer >= 1 and targetLayer <= totalLayers then
+    -- Dedicated FormFillAI layer already exists! Switch to it if not active
+    if currentLayer ~= targetLayer then
+      pcall(function()
+        app.setCurrentLayer(targetLayer, false)
+      end)
+    end
+    return targetLayer
+  end
+
+  -- No dedicated FormFillAI layer exists on this page yet: create it ONCE
   pcall(function()
     app.activateAction("layer-new-above-current")
     app.setCurrentLayerName("FormFillAI")
   end)
+
+  local updatedDoc = app.getDocumentStructure()
+  local updatedPage = updatedDoc and updatedDoc.pages and updatedDoc.pages[pageIdx]
+  local newLayerNr = updatedPage and updatedPage.currentLayer or (totalLayers + 1)
+  PluginState.formLayers[pageIdx] = newLayerNr
+  return newLayerNr
 end
 
 -- ---------------------------------------------------------------------------
@@ -385,10 +426,19 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
     app.changeActionState("select-tool", app.C.Tool_text)
   end)
 
-  -- Record checkboxes in plugin state
+  -- Preserve any manually added checkboxes on this page
+  local existingCbs = PluginState.checkboxes[pageIdx] or {}
+  local manualCbs = {}
+  for _, cb in ipairs(existingCbs) do
+    if cb.strokeRefs then
+      table.insert(manualCbs, cb)
+    end
+  end
+  PluginState.checkboxes[pageIdx] = manualCbs
+
+  -- Record newly detected checkboxes in plugin state
   local cbs = results.checkboxes or {}
   local tbs = results.text_boxes or {}
-  PluginState.checkboxes[pageIdx] = {}
   for _, cb in ipairs(cbs) do
     table.insert(PluginState.checkboxes[pageIdx], {
       x = cb.x,
@@ -401,7 +451,8 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
   end
   PluginState.textboxes[pageIdx] = tbs
 
-  ensureFormFillLayer()
+  -- Ensure we are on the single dedicated FormFillAI layer
+  ensureFormFillLayer(pageIdx)
 
   -- Check existing texts on layer to avoid placing overlays over already-typed fields
   local existingTexts = app.getTexts("layer") or {}
@@ -417,6 +468,21 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
       end
     end
     return false
+  end
+
+  -- Clean up previously placed empty placeholder overlays on this layer so they don't duplicate on re-detection
+  local oldEmptyRefs = {}
+  for _, t in ipairs(existingTexts) do
+    local str = t.text or ""
+    local meaningful = str:gsub("\xc2\xa0", ""):gsub("%s", "")
+    if (meaningful == "" or meaningful == "[ ... ]" or meaningful == "...") and t.ref then
+      table.insert(oldEmptyRefs, t.ref)
+    end
+  end
+  if #oldEmptyRefs > 0 then
+    app.clearSelection()
+    app.addToSelection(oldEmptyRefs)
+    app.activateAction("delete")
   end
 
   -- 1. Create bounded fillable text box overlays matching exact field dimensions
@@ -452,6 +518,11 @@ local function applyPageDetections(pageIdx, results, config, showSummary)
     if not PluginState.textBoxRefs then PluginState.textBoxRefs = {} end
     PluginState.textBoxRefs[pageIdx] = textRefs
   end
+
+  -- Return active tool to text tool so fields are immediately clickable
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_text)
+  end)
 
   -- 2. Do NOT draw dashed guide borders (pure fillable text fields as requested)
   app.refreshPage()
@@ -675,6 +746,14 @@ function onDetectFullPdf()
   end
 
   app.setCurrentPage(origPage)
+  if PluginState.formLayers and PluginState.formLayers[origPage] then
+    pcall(function()
+      app.setCurrentLayer(PluginState.formLayers[origPage], false)
+    end)
+  end
+  pcall(function()
+    app.changeActionState("select-tool", app.C.Tool_text)
+  end)
   app.refreshPage()
 
   local counts = results.counts or {}
@@ -730,7 +809,7 @@ function cbOnChooseCheckboxShape(btn)
   end
   table.insert(PluginState.checkboxes[pageIdx], newBox)
 
-  ensureFormFillLayer()
+  ensureFormFillLayer(pageIdx)
 
   local color = 0x000000 -- Requirement 2: Pure Black for all shapes
   local width = config.checkbox_stroke_width or 1.6
